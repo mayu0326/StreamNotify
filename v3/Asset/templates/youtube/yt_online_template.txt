@@ -1,0 +1,8 @@
+▶️ YouTube Live 配信開始 🚀
+
+チャンネル: {{ broadcaster_user_name }}
+タイトル: {{ title }}
+開始日時: {{ start_time | datetimeformat }}
+視聴URL: {{ stream_url }}
+
+みなさんの視聴をお待ちしています！
