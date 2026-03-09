@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-StreamNotify on Bluesky v3 - バージョン情報
+StreamNotify v3 - バージョン情報
 
 セマンティックバージョニングを採用
 - major: 大規模な機能追加・API変更
@@ -9,8 +9,8 @@ StreamNotify on Bluesky v3 - バージョン情報
 - patch: バグ修正
 """
 
-__version__ = "3.2.0"
-__release_date__ = "2026-02-19"
+__version__ = "3.2.1"
+__release_date__ = "2026-02-25"
 __status__ = "stable"  # development / alpha / beta / stable
 __author__ = "mayuneco(mayunya)"
 __license__ = "GPLv2"

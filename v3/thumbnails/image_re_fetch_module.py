@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-Stream notify on Bluesky - v3 画像再取得ツール
+StreamNotify - v3 画像再取得ツール
 
 データベース内の画像が設定されていない動画について、
 thumbnail_urlから画像を再ダウンロードして保存します。
@@ -17,8 +17,8 @@ thumbnail_urlから画像を再ダウンロードして保存します。
     --verbose   : 詳細ログを表示
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
 
 # v3ルートをパスに追加
@@ -29,6 +29,7 @@ Path("logs").mkdir(exist_ok=True)
 
 from database import get_database
 from image_manager import get_image_manager, get_youtube_thumbnail_url
+
 from .niconico_ogp_utils import get_niconico_ogp_url
 
 # ThumbnailsLogger（logging_plugin.pyで設定管理）

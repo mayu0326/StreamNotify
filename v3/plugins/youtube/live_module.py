@@ -20,10 +20,10 @@ YouTubeVideoClassifier の結果に基づいて、
 
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
+from config import OperationMode, get_config
 from database import Database
-from config import get_config, OperationMode
 
 logger = logging.getLogger("AppLogger")
 
@@ -46,7 +46,7 @@ class LiveModule:
     YouTubeVideoClassifier の分類結果を受け取り、
     DB 登録、状態遷移検知、自動投稿を一元処理する。
 
-    ★ v3.3.0 改訂：複雑なポーリング追跡戦略に対応
+    ★ v3.2.0 改訂：複雑なポーリング追跡戦略に対応
     - completed のみ時：1～3時間毎に確認
     - archive化後：元completed動画について3時間毎に最大4回確認
     - LIVE なし時：判定ロジック休止（RSS/WebSubから新規動画まで待機）
@@ -66,7 +66,7 @@ class LiveModule:
 
         # ★ メモリ内追跡情報（アプリケーション実行中のみ保持）
         # {video_id: {"last_poll_time": float, "archive_check_count": int}}
-        self.archive_tracking = {}
+        self.archive_tracking: Dict[str, Dict[str, Any]] = {}
 
         logger.debug("📝 Live追跡情報マップを初期化しました")
 
@@ -243,6 +243,7 @@ class LiveModule:
             except Exception as e:
                 logger.error(f"❌ Live動画の更新に失敗しました: {video_id} - {e}")
                 success = False
+            return 1 if success else 0
         else:
             # 【新規登録】
             logger.info(
@@ -298,7 +299,7 @@ class LiveModule:
 
     def get_next_poll_interval_minutes(self) -> int:
         """
-        次回のポーリング間隔を決定（動的ポーリング間隔戦略 v3.3.0+ 改訂版）
+        次回のポーリング間隔を決定（動的ポーリング間隔戦略 v3.2.0+ 改訂版）
 
         複雑な3段階戦略：
         1. ACTIVE（schedule/live あり）: 短い固定間隔
@@ -747,7 +748,7 @@ class LiveModule:
         self,
         video: Dict[str, Any],
         result: Dict[str, Any],
-        current_type: str = None,
+        current_type: Optional[str] = None,
         current_live_status: Optional[str] = None,
     ) -> None:
         """

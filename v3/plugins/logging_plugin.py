@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-Stream notify on Bluesky - v3 ロギング拡張プラグイン
+StreamNotify - v3 ロギング拡張プラグイン
 
 旧版の高機能なロギング設定を提供するプラグイン。
 - 複数ロガー（AppLogger, AuditLogger, TunnelLogger, YouTubeLogger, NiconicoLogger）
@@ -8,24 +8,27 @@ Stream notify on Bluesky - v3 ロギング拡張プラグイン
 - 環境変数ベースのログレベル制御
 """
 
-import os
-import sys
 import logging
+import os
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
 
 # 親ディレクトリのplugin_interfaceをインポート
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from plugin_interface import NotificationPlugin
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+try:
+    from plugin_interface import NotificationPlugin
+except ImportError:
+    from v3.plugin_interface import NotificationPlugin
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
 __license__ = "GPLv2"
 
 # シングルトン用キャッシュ
-_logging_plugin_cache = {}
+_logging_plugin_cache: Dict[str, Any] = {}
 
 
 class FlushTimedRotatingFileHandler(TimedRotatingFileHandler):
@@ -83,7 +86,7 @@ class LoggingPlugin(NotificationPlugin):
         """
         self.env_path = env_path or self._find_env_file()
         self.configured = False
-        self.loggers = {}
+        self.loggers: Dict[str, Any] = {}
 
     def _find_env_file(self) -> str:
         """環境変数ファイルを検出"""

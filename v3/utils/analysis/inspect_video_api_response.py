@@ -6,10 +6,11 @@ YouTube API レスポンス詳細確認
 D5fDvRBf6vk の詳細情報を取得して、プレミア公開と配信予定枠の区別を調査
 """
 
+import json
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
-import json
 
 # v2 パスを追加
 sys.path.insert(0, str(Path(__file__).parent.parent / "v2"))

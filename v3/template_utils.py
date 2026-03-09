@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 テンプレート処理ユーティリティ
+StreamNotify - v3 テンプレート処理ユーティリティ
 
 テンプレートの読み込み、検証、レンダリングに関する共通関数と定義を提供。
 
@@ -10,13 +10,14 @@ Vanilla 環境では、テンプレート仕様とファイル構成が整備さ
 プラグイン実装時にこれらの関数を即座に活用できます。
 """
 
-import os
 import logging
+import os
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Any
-from jinja2 import Environment, TemplateSyntaxError
+from typing import Any, Dict, List, Optional, Tuple, cast
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateSyntaxError
 
 logger = logging.getLogger("AppLogger")
 
@@ -39,12 +40,13 @@ def _format_date_filter(value=None, format_str="%Y年%m月%d日") -> str:
     elif isinstance(value, str):
         try:
             value = datetime.fromisoformat(value)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"[INFO] 日時フォーマットスキップ: {value} - {e}")
             return str(value)
 
     if isinstance(value, datetime):
         return value.strftime(format_str)
-    return str(value)
+    return str(value) if value is not None else ""
 
 
 def _format_datetime_filter(value=None, format_str="%Y年%m月%d日 %H:%M") -> str:
@@ -76,7 +78,7 @@ def _format_datetime_filter(value=None, format_str="%Y年%m月%d日 %H:%M") -> s
 
             value = datetime.fromisoformat(value)
         except Exception as e:
-            logger.debug(f"⚠️ 日時パース失敗: {value} - {e}")
+            logger.debug(f"[WARN] 日時パース失敗: {value} - {e}")
             return str(value)
 
     if isinstance(value, datetime):
@@ -104,7 +106,7 @@ def calculate_extended_time_for_event(video_dict: Dict[str, Any]) -> None:
     """
     イベント情報から拡張時刻を計算して video_dict に追加
 
-    ★ v3.3.0: 朝早い時刻（00:00～12:00）を拡張時刻として表現
+    ★ v3.2.0: 朝早い時刻（00:00～12:00）を拡張時刻として表現
 
     例: published_at が 2025-12-29 03:00 の場合
     → 2025-12-29 の 27 時として表現（同日基準日 27 時）
@@ -130,7 +132,8 @@ def calculate_extended_time_for_event(video_dict: Dict[str, Any]) -> None:
         # 日時を解析
         try:
             published_at = datetime.fromisoformat(published_at_str)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"[INFO] 基準日パーススキップ: {published_at_str} - {e}")
             return
 
         hour = published_at.hour
@@ -144,19 +147,19 @@ def calculate_extended_time_for_event(video_dict: Dict[str, Any]) -> None:
             extended_display_date = date.strftime("%Y-%m-%d")
 
             logger.debug(
-                f"🔢 拡張時刻: {date} {hour:02d}:00 → {extended_display_date} {extended_hour}時"
+                f"[NUM] 拡張時刻: {date} {hour:02d}:00 → {extended_display_date} {extended_hour}時"
             )
         else:
             # 正午以降の場合は通常時刻
             extended_hour = hour
             extended_display_date = date.strftime("%Y-%m-%d")
-            logger.debug(f"🔢 通常時刻: {date} {hour:02d}:00")
+            logger.debug(f"[NUM] 通常時刻: {date} {hour:02d}:00")
 
         video_dict["extended_hour"] = extended_hour
         video_dict["extended_display_date"] = extended_display_date
 
     except Exception as e:
-        logger.warning(f"⚠️ 拡張時刻計算エラー: {e}")
+        logger.warning(f"[WARN] 拡張時刻計算エラー: {e}")
 
 
 def _weekday_filter(value=None) -> str:
@@ -170,16 +173,17 @@ def _weekday_filter(value=None) -> str:
     elif isinstance(value, str):
         try:
             value = datetime.fromisoformat(value)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"[INFO] 曜日判定日時パーススキップ: {value} - {e}")
             return str(value)
 
     if isinstance(value, datetime):
         weekdays = ["月", "火", "水", "木", "金", "土", "日"]
         return weekdays[value.weekday()]
-    return str(value)
+    return str(value) if value is not None else ""
 
 
-# ============ v3.3.0: 24時以降の時刻正規化機能 ============
+# ============ v3.2.0: 24時以降の時刻正規化機能 ============
 
 
 def parse_extended_time(time_str: str) -> Optional[Dict[str, Any]]:
@@ -219,7 +223,7 @@ def parse_extended_time(time_str: str) -> Optional[Dict[str, Any]]:
             # 基本検証：範囲 0-30時、分は 0-59
             if hours < 0 or hours > 30 or minutes < 0 or minutes > 59:
                 logger.warning(
-                    f"⚠️ 拡張時刻の範囲エラー: {time_str} (範囲: 00:00-30:00)"
+                    f"[WARN] 拡張時刻の範囲エラー: {time_str} (範囲: 00:00-30:00)"
                 )
                 return None
 
@@ -248,7 +252,7 @@ def parse_extended_time(time_str: str) -> Optional[Dict[str, Any]]:
             }
 
     except (ValueError, IndexError):
-        logger.warning(f"⚠️ 拡張時刻のパースエラー: {time_str}")
+        logger.warning(f"[WARN] 拡張時刻のパースエラー: {time_str}")
         return None
 
     return None
@@ -336,7 +340,7 @@ def normalize_datetime_with_extended_time(
         }
 
     except Exception as e:
-        logger.warning(f"⚠️ 日時の正規化エラー: {date_str} {time_str} - {e}")
+        logger.warning(f"[WARN] 日時の正規化エラー: {date_str} {time_str} - {e}")
         return None
 
 
@@ -641,7 +645,7 @@ def _get_env_var_from_file(file_path: str, env_var_name: str) -> Optional[str]:
                     if key.strip() == env_var_name:
                         return value.strip()
     except Exception as e:
-        logger.debug(f"⚠️ 設定ファイル読み込みエラー ({file_path}): {e}")
+        logger.debug(f"[WARN] 設定ファイル読み込みエラー ({file_path}): {e}")
 
     return None
 
@@ -678,7 +682,9 @@ def _get_legacy_env_var_name(template_type: str) -> str:
 
 
 def get_template_path(
-    template_type: str, env_var_name: str = None, default_fallback: str = None
+    template_type: str,
+    env_var_name: Optional[str] = None,
+    default_fallback: Optional[str] = None,
 ) -> Optional[str]:
     """
     環境変数からテンプレートパスを取得、なければデフォルトを返す。
@@ -718,7 +724,7 @@ def get_template_path(
         env_path = _get_env_var_from_file("settings.env", new_format_env_var)
         if env_path:
             logger.debug(
-                f"✅ settings.env から読み込み: {new_format_env_var} = {env_path}"
+                f"[SUCCESS] settings.env から読み込み: {new_format_env_var} = {env_path}"
             )
 
     if env_path:
@@ -736,7 +742,7 @@ def get_template_path(
         env_path = _get_env_var_from_file("settings.env", legacy_format_env_var)
         if env_path:
             logger.debug(
-                f"✅ settings.env から読み込み（レガシー形式）: {legacy_format_env_var} = {env_path}"
+                f"[SUCCESS] settings.env から読み込み（レガシー形式）: {legacy_format_env_var} = {env_path}"
             )
 
     if env_path:
@@ -771,7 +777,7 @@ def get_template_path(
 
 
 def load_template_with_fallback(
-    path: str, default_path: str = None, template_type: str = "unknown"
+    path: str, default_path: Optional[str] = None, template_type: str = "unknown"
 ) -> Optional[Any]:
     """
     テンプレートファイルを読み込み、失敗時はデフォルトにフォールバック。
@@ -791,7 +797,7 @@ def load_template_with_fallback(
     """
     if not path:
         logger.warning(
-            f"⚠️ テンプレートパスが指定されていません（種別: {template_type}）"
+            f"[WARN] テンプレートパスが指定されていません（種別: {template_type}）"
         )
         path = default_path or str(DEFAULT_TEMPLATE_PATH)
 
@@ -813,10 +819,12 @@ def load_template_with_fallback(
         logger.debug(f"   exists={template_path.exists()}")
 
         if not template_path.exists():
-            logger.warning(f"⚠️ テンプレートファイルが見つかりません: {template_path}")
+            logger.warning(
+                f"[WARN] テンプレートファイルが見つかりません: {template_path}"
+            )
             if default_path:
-                logger.info(
-                    f"🔄 デフォルトテンプレートにフォールバック: {default_path}"
+                logger.warning(
+                    f"[WARN] テンプレート読み込み失敗（デフォルトを使用）: {path}"
                 )
                 path = default_path
                 # フォールバック時も相対パス → 絶対パス変換を試みる
@@ -839,7 +847,7 @@ def load_template_with_fallback(
             template_str = f.read()
 
         # Jinja2 Environment でテンプレート化
-        env = Environment()
+        env = Environment(autoescape=True)
         # ★ Jinja2 ビルトインフィルターを有効化（int, upper, lower など）
 
         # フィルターを登録（format_datetime_filter は別途提供）
@@ -853,18 +861,20 @@ def load_template_with_fallback(
         env.filters["random_emoji"] = _random_emoji_filter
         env.filters["weekday"] = _weekday_filter
 
-        # v3.3.0: 拡張時刻フィルターを登録
+        # v3.2.0: 拡張時刻フィルターを登録
         env.filters["extended_time"] = _extended_time_filter
         env.filters["extended_time_display"] = _extended_time_display_filter
 
         template_obj = env.from_string(template_str)
 
-        logger.debug(f"✅ テンプレート読み込み成功: {path} (種別: {template_type})")
+        logger.debug(
+            f"[SUCCESS] テンプレート読み込み（成功）: {path} (種別: {template_type})"
+        )
         return template_obj
 
     except FileNotFoundError as e:
         logger.error(
-            f"❌ テンプレートファイル読み込みエラー: {template_path} (path={path})"
+            f"[ERROR] テンプレートファイル読み込みエラー: {template_path} (path={path})"
         )
         logger.error(f"   詳細: ファイルが見つかりません - {e}")
         if default_path and path != default_path:
@@ -935,7 +945,7 @@ def render_template(
     """
     Jinja2 テンプレートをレンダリング。
 
-    v3.3.0: 拡張時刻対応
+    v3.2.0: 拡張時刻対応
     - event_context に "scheduled_at" が存在し、かつ "HH:MM" 形式の時刻文字列を含む場合
     - 自動的に以下の変数が追加される:
       - scheduled_at_normalized: 正規化された24時間制表記 ("01:00" など)
@@ -978,7 +988,7 @@ def render_template(
         return None
 
     try:
-        # ★ v3.3.0: 拡張時刻の自動処理
+        # ★ v3.2.0: 拡張時刻の自動処理
         context = dict(event_context)  # 元のevent_contextを保護
 
         if "scheduled_at" in context and isinstance(context["scheduled_at"], str):
@@ -1004,7 +1014,7 @@ def render_template(
                 except Exception as e:
                     logger.debug(f"⚠️ 拡張時刻の処理スキップ: {e}")
 
-        # ★ v3.3.0: テンプレート内で使用可能なカスタム関数を注入
+        # ★ v3.2.0: テンプレート内で使用可能なカスタム関数を注入
         context["normalize_extended_datetime"] = normalize_datetime_with_extended_time
 
         # ★ 日付と拡張時刻の合成表示用ヘルパー関数
@@ -1211,17 +1221,20 @@ def get_sample_context(template_type: str) -> Dict[str, Any]:
         },
     }
 
-    return sample_contexts.get(
-        template_type,
-        {
-            "title": "サンプルタイトル",
-            "channel_name": "サンプル投稿者",
-            "video_url": "https://example.com/video",
-            "platform": "Unknown",
-            "source": "unknown",
-            "content_type": "video",
-            "live_status": None,
-        },
+    return cast(
+        Dict[str, Any],
+        sample_contexts.get(
+            template_type,
+            {
+                "title": "サンプルタイトル",
+                "channel_name": "サンプル投稿者",
+                "video_url": "https://example.com/video",
+                "platform": "Unknown",
+                "source": "unknown",
+                "content_type": "video",
+                "live_status": None,
+            },
+        ),
     )
 
 
@@ -1229,7 +1242,9 @@ def get_sample_context(template_type: str) -> Dict[str, Any]:
 
 
 def preview_template(
-    template_type: str, template_text: str, event_context: Dict[str, Any] = None
+    template_type: str,
+    template_text: str,
+    event_context: Optional[Dict[str, Any]] = None,
 ) -> Tuple[bool, str]:
     """
     ユーザーがテンプレート編集ダイアログで入力したテンプレートをプレビュー。
@@ -1246,7 +1261,7 @@ def preview_template(
         event_context = get_sample_context(template_type)
 
     try:
-        env = Environment()
+        env = Environment(autoescape=True)
         from utils_v3 import format_datetime_filter
 
         env.filters["datetimeformat"] = format_datetime_filter
@@ -1272,7 +1287,7 @@ def preview_template(
 
 
 def save_template_file(
-    template_type: str, template_text: str, output_path: str = None
+    template_type: str, template_text: str, output_path: Optional[str] = None
 ) -> Tuple[bool, str]:
     """
     ユーザーが編集したテンプレートをファイルに保存。
@@ -1294,13 +1309,13 @@ def save_template_file(
         return False, error_msg
 
     try:
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        final_path = Path(cast(str, output_path))
+        final_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, "w", encoding="utf-8") as f:
+        with open(final_path, "w", encoding="utf-8") as f:
             f.write(template_text)
 
-        success_msg = f"✅ テンプレートを保存しました: {output_path}"
+        success_msg = f"✅ テンプレートを保存しました: {final_path}"
         logger.info(success_msg)
         return True, success_msg
 
@@ -1312,7 +1327,7 @@ def save_template_file(
 
 if __name__ == "__main__":
     # ユーティリティのテスト実行
-    print("Template Utils - v3.3.0")
+    print("Template Utils - v3.2.0")
     print("=" * 50)
 
     # テスト: サンプル context を表示

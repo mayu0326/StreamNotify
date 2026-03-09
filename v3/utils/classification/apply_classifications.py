@@ -12,9 +12,10 @@
 
 import json
 import sqlite3
-from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 def _classify_video_core(details):
@@ -126,7 +127,7 @@ def classify_videos(videos):
 
     # ライブステータスの内訳
     if results["live"]:
-        live_details = defaultdict(int)
+        live_details: Dict[Optional[str], int] = defaultdict(int)
         for item in results["live"]:
             live_details[item["live_status"]] += 1
         print("ライブステータス内訳:")

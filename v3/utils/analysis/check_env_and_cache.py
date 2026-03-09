@@ -5,8 +5,8 @@
 """
 
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # v2 パスを追加
 sys.path.insert(0, "v2")

@@ -1,13 +1,13 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - プラグインインターフェース
+StreamNotify - v3 プラグインインターフェース
 
 プラグインが実装すべきインターフェース（抽象基底クラス）を定義します。
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any, Dict
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"

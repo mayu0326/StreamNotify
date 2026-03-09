@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 バックアップ・復元管理
+StreamNotify - v3 バックアップ・復元管理
 
 DB・テンプレート・設定を ZIP 形式で一括エクスポート/インポート
 """
 
-import shutil
 import logging
+import shutil
 import zipfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Tuple
 
 logger = logging.getLogger("AppLogger")

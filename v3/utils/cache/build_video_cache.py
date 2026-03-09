@@ -9,6 +9,7 @@ import sys
 sys.path.insert(0, "v3")
 
 from pathlib import Path
+
 from config import get_config
 
 config = get_config("v3/settings.env")
@@ -45,7 +46,7 @@ batch_size = 50
 total_units_consumed = 0
 
 for i in range(0, len(video_ids), batch_size):
-    batch = video_ids[i:i + batch_size]
+    batch = video_ids[i : i + batch_size]
     print(
         f"バッチ {i // batch_size + 1}: {len(batch)} 件を処理 ({i + 1}-{min(i + batch_size, len(video_ids))}/{len(video_ids)})"
     )

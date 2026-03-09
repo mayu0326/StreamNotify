@@ -1,8 +1,10 @@
-import sys
 import shutil
 import sqlite3
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 from dotenv import load_dotenv
 
 # v2 パスを追加
@@ -15,11 +17,11 @@ load_dotenv(env_path)
 from plugins.youtube_api_plugin import YouTubeAPIPlugin  # noqa: E402
 
 
-def classify_video(details):
+def classify_video(details: Dict[str, Any]) -> Optional[Tuple[str, Optional[str], bool]]:
     """分類ロジックを適用"""
     if not details:
         return None
-    return YouTubeAPIPlugin._classify_video_core(details)
+    return YouTubeAPIPlugin()._classify_video_core(details)
 
 
 def main():
@@ -73,11 +75,11 @@ def main():
         conn.close()
         return 1
 
-    changes = []
-    errors = []
+    changes: List[Dict[str, Any]] = []
+    errors: List[Tuple[str, str]] = []
 
     for i, video in enumerate(youtube_videos, 1):
-        video_id = video.get("video_id")
+        video_id = str(video.get("video_id", ""))
         db_id = video.get("id")
 
         current_type = video.get("content_type", "?")
