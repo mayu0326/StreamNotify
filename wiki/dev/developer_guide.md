@@ -160,7 +160,7 @@ flowchart TD
 各機能（GUI実装、Bluesky投稿基盤、画像リサイズ処理など）のコードレベルの内部仕様を知りたい場合は、  
 以下のディレクトリを参照してください。
 
-- **[開発者向け詳細技術仕様書 (docs/technical/index.md)](./docs/technical/index.md)**
+- **[開発者向け詳細技術仕様書](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/dev/technical_specs.md)**
 
 ---
 
