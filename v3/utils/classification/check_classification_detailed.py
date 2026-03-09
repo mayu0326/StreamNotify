@@ -4,10 +4,6 @@
 DB 分類結果の詳細確認
 """
 
-import sys
-
-sys.path.insert(0, "v2")
-
 from database import get_database
 
 db = get_database("v3/data/video_list.db")

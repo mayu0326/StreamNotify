@@ -4,10 +4,6 @@
 DB 状態確認スクリプト
 """
 
-import sys
-
-sys.path.insert(0, "v2")
-
 from database import get_database
 
 db = get_database("v3/data/video_list.db")

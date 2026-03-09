@@ -34,7 +34,7 @@ from pathlib import Path
 v3_path = Path(__file__).parent.parent.parent / "v3"
 sys.path.insert(0, str(v3_path))
 
-import sqlite3
+import sqlite3  # noqa: E402
 
 # DB パス
 DB_PATH = v3_path / "data" / "video_list.db"
@@ -72,7 +72,7 @@ def reset_post_flag(video_id: str) -> bool:
 
         existing_video_id, title, posted_flag, posted_at = row
 
-        print(f"\n📋 現在の状態:")
+        print("\n📋 現在の状態:")
         print(f"   video_id: {existing_video_id}")
         print(f"   title: {title}")
         print(f"   posted_to_bluesky: {posted_flag} (0=未投稿, 1=投稿済み)")
@@ -80,7 +80,7 @@ def reset_post_flag(video_id: str) -> bool:
 
         # 確認
         response = (
-            input(f"\n⚠️  このレコードをリセットしますか？ [y/N]: ").strip().lower()
+            input("\n⚠️  このレコードをリセットしますか？ [y/N]: ").strip().lower()
         )
         if response != "y":
             print("❌ キャンセルしました")
@@ -95,7 +95,7 @@ def reset_post_flag(video_id: str) -> bool:
         conn.commit()
 
         print(f"\n✅ リセット完了: {video_id}")
-        print(f"   posted_to_bluesky: 1 → 0")
+        print("   posted_to_bluesky: 1 → 0")
         print(f"   posted_at: {posted_at} → NULL")
 
         conn.close()
@@ -161,7 +161,7 @@ def reset_all_videos() -> bool:
             conn.close()
             return False
 
-        print(f"\n📊 全動画の投稿状態:")
+        print("\n📊 全動画の投稿状態:")
         print(f"   全体: {total_count} 件")
         print(f"   投稿済み: {posted_count} 件")
         print(f"   未投稿: {total_count - posted_count} 件")
@@ -177,7 +177,7 @@ def reset_all_videos() -> bool:
         posted_videos = cursor.fetchall()
 
         if posted_videos:
-            print(f"\n📝 投稿済み動画（最新 10 件）:")
+            print("\n📝 投稿済み動画（最新 10 件）:")
             for i, (vid, title, posted_at) in enumerate(posted_videos, 1):
                 print(f"   {i}. [{vid}] {title[:30]}... (投稿日: {posted_at})")
             if posted_count > 10:
@@ -209,10 +209,10 @@ def reset_all_videos() -> bool:
         conn.commit()
         affected = cursor.rowcount
 
-        print(f"\n✅ 一括リセット完了")
+        print("\n✅ 一括リセット完了")
         print(f"   {affected} 件のレコードをリセットしました")
-        print(f"   posted_to_bluesky: 1 → 0")
-        print(f"   posted_at: (各値) → NULL")
+        print("   posted_to_bluesky: 1 → 0")
+        print("   posted_at: (各値) → NULL")
 
         conn.close()
         return True

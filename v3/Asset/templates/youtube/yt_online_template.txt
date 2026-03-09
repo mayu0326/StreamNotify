@@ -2,7 +2,7 @@
 
 チャンネル: {{ broadcaster_user_name }}
 タイトル: {{ title }}
-開始日時: {{ start_time | datetimeformat }}
+開始日時: {{ published_at | datetimeformat }}
 視聴URL: {{ stream_url }}
 
 みなさんの視聴をお待ちしています！

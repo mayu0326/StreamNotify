@@ -63,16 +63,16 @@ def main():
 
         # videos.list: 1 ユニット/動画
         videos_list_cost = youtube_count
-        print(f"videos.list（動画詳細取得）:")
+        print("videos.list（動画詳細取得）:")
         print(f"  YouTube 動画数: {youtube_count} 件")
-        print(f"  1 動画 = 1 ユニット")
+        print("  1 動画 = 1 ユニット")
         print(f"  小計: {videos_list_cost} ユニット")
         print()
 
         # チャンネルID解決（初回のみ）
         channels_cost = 1
-        print(f"channels.list（チャンネルID解決）:")
-        print(f"  初回アクセス時のみ: 1 ユニット")
+        print("channels.list（チャンネルID解決）:")
+        print("  初回アクセス時のみ: 1 ユニット")
         print(f"  小計: {channels_cost} ユニット")
         print()
 
@@ -84,7 +84,7 @@ def main():
         print("【合計 API コスト】\n")
         print(f"  videos.list: {videos_list_cost} ユニット")
         print(f"  channels.list: {channels_cost} ユニット")
-        print(f"  ────────────────────")
+        print("  ────────────────────")
         print(f"  合計: {total_cost} ユニット")
         print()
 
@@ -97,10 +97,10 @@ def main():
         print()
 
         if total_cost <= daily_quota:
-            print(f"✅ クォータ内！【安全】")
+            print("✅ クォータ内！【安全】")
             print(f"   {daily_quota - total_cost} ユニットの余裕があります")
         else:
-            print(f"❌ クォータ超過！【要注意】")
+            print("❌ クォータ超過！【要注意】")
             print(f"   {total_cost - daily_quota} ユニット不足しています")
         print()
 
@@ -123,7 +123,7 @@ def main():
         # API 効率分析
         print("【API 効率分析】\n")
         print(
-            f"効率: {youtube_count} 動画 / {total_cost} ユニット = {youtube_count/total_cost:.2f} 動画/ユニット"
+            f"効率: {youtube_count} 動画 / {total_cost} ユニット = {youtube_count / total_cost:.2f} 動画/ユニット"
         )
         print()
 

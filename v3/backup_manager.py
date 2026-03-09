@@ -1,159 +1,430 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3.1.0 Backup Manager
+Stream notify on Bluesky - v3 バックアップ・復元管理
 
-DB、設定、テンプレートをZIP形式でバックアップ・復元する機能を提供。
+DB・テンプレート・設定を ZIP 形式で一括エクスポート/インポート
 """
 
 import shutil
-import zipfile
 import logging
-from datetime import datetime
+import zipfile
 from pathlib import Path
-from typing import List, Tuple
+from datetime import datetime
+from typing import Tuple
 
 logger = logging.getLogger("AppLogger")
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
-__license__ = "GPLv3"
+__license__ = "GPLv2"
 
 
 class BackupManager:
-    """バックアップと復元を管理するクラス"""
+    """バックアップ・復元を管理するクラス"""
 
-    def __init__(self, base_dir: str = "."):
+    def __init__(self, base_dir="."):
+        """
+        初期化
+
+        Args:
+            base_dir: アプリケーションベースディレクトリ
+        """
         self.base_dir = Path(base_dir)
-        self.backup_dir = self.base_dir / "backup"
-        self.data_dir = self.base_dir / "data"
+        self.db_path = self.base_dir / "data" / "video_list.db"
         self.templates_dir = self.base_dir / "templates"
-        self.images_dir = self.base_dir / "images"
         self.settings_file = self.base_dir / "settings.env"
-
-        # バックアップディレクトリの作成
-        self.backup_dir.mkdir(exist_ok=True)
+        self.youtube_cache_file = (
+            self.base_dir / "data" / "youtube_video_detail_cache.json"
+        )
+        self.deleted_videos_file = self.base_dir / "data" / "deleted_videos.json"
+        self.images_dir = self.base_dir / "images"
 
     def create_backup(
-        self, include_images: bool = False, exclude_secrets: bool = False
+        self,
+        backup_file: str,
+        include_api_keys: bool = False,
+        include_passwords: bool = False,
+        include_images: bool = False,
     ) -> Tuple[bool, str]:
         """
-        現在の状態をZIPファイルにバックアップ
+        バックアップを作成（DB + テンプレート + 設定を ZIP に圧縮）
 
         Args:
-            include_images: 画像フォルダを含めるか
-            exclude_secrets: (未実装) APIキーなどを除外するか
-
-        Returns:
-            (成功フラグ, メッセージ/パス)
-        """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_filename = f"streamnotify_backup_{timestamp}.zip"
-        backup_path = self.backup_dir / backup_filename
-
-        try:
-            with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                # 1. データベース
-                if self.data_dir.exists():
-                    for file in self.data_dir.glob("*.db"):
-                        zipf.write(file, arcname=f"data/{file.name}")
-                    # json (除外リストなど) も含める
-                    for file in self.data_dir.glob("*.json"):
-                        zipf.write(file, arcname=f"data/{file.name}")
-
-                # 2. 設定ファイル
-                if self.settings_file.exists():
-                    # TODO: exclude_secrets が True の場合の処理 (今回は単純コピー)
-                    zipf.write(self.settings_file, arcname="settings.env")
-
-                # 3. テンプレート
-                if self.templates_dir.exists():
-                    for file in self.templates_dir.rglob("*"):
-                        if file.is_file():
-                            zipf.write(
-                                file,
-                                arcname=f"templates/{file.relative_to(self.templates_dir)}",
-                            )
-
-                # 4. 画像 (オプション)
-                if include_images and self.images_dir.exists():
-                    for file in self.images_dir.rglob("*"):
-                        if file.is_file():
-                            zipf.write(
-                                file,
-                                arcname=f"images/{file.relative_to(self.images_dir)}",
-                            )
-
-            logger.info(f"✅ バックアップ作成完了: {backup_path}")
-            return True, str(backup_path)
-
-        except Exception as e:
-            logger.error(f"❌ バックアップ作成エラー: {e}")
-            return False, str(e)
-
-    def restore_backup(self, backup_zip_path: str) -> Tuple[bool, str]:
-        """
-        ZIPファイルから復元
-
-        Args:
-            backup_zip_path: バックアップZIPファイルのパス
+            backup_file: 保存先ファイルパス（.zip）
+            include_api_keys: settings.env に API キーを含めるか
+            include_passwords: settings.env にパスワードを含めるか
+            include_images: images/ フォルダを含めるか
 
         Returns:
             (成功フラグ, メッセージ)
         """
-        backup_zip = Path(backup_zip_path)
-        if not backup_zip.exists():
-            return False, "バックアップファイルが見つかりません"
-
-        # 復元前の自動バックアップ (フェイルセーフ)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        restore_point_dir = self.backup_dir / f"restore_point_{timestamp}"
-
         try:
-            # 現在のファイルを一時退避
-            self._create_restore_point(restore_point_dir)
+            backup_path = Path(backup_file)
 
-            # ZIPを展開して上書き
-            with zipfile.ZipFile(backup_zip, "r") as zipf:
-                zipf.extractall(self.base_dir)
+            # バックアップディレクトリが存在しない場合は作成
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"✅ 復元完了: {backup_zip_path}")
-            return True, "復元が完了しました。アプリケーションを再起動してください。"
+            logger.info(f"🔄 バックアップを作成しています: {backup_file}")
+
+            # タイムスタンプを一度だけ生成（全ファイルで統一）
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_prefix = f"backup_{timestamp}"
+
+            with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                # DB をバックアップ
+                if self.db_path.exists():
+                    arcname = f"{backup_prefix}/data/video_list.db"
+                    zf.write(self.db_path, arcname=arcname)
+                    logger.debug(f"✅ DB をバックアップ: {self.db_path}")
+                else:
+                    logger.warning(f"⚠️ DB ファイルが見つかりません: {self.db_path}")
+
+                # YouTube キャッシュをバックアップ
+                if self.youtube_cache_file.exists():
+                    arcname = f"{backup_prefix}/data/youtube_video_detail_cache.json"
+                    zf.write(self.youtube_cache_file, arcname=arcname)
+                    logger.debug(
+                        f"✅ YouTube キャッシュをバックアップ: {self.youtube_cache_file}"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ YouTube キャッシュファイルが見つかりません: {self.youtube_cache_file}"
+                    )
+
+                # 削除済み動画リストをバックアップ
+                if self.deleted_videos_file.exists():
+                    arcname = f"{backup_prefix}/data/deleted_videos.json"
+                    zf.write(self.deleted_videos_file, arcname=arcname)
+                    logger.debug(
+                        f"✅ 削除済み動画リストをバックアップ: {self.deleted_videos_file}"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ 削除済み動画リストが見つかりません: {self.deleted_videos_file}"
+                    )
+
+                # テンプレートをバックアップ
+                if self.templates_dir.exists():
+                    for template_file in self.templates_dir.rglob("*"):
+                        if template_file.is_file():
+                            rel_path = template_file.relative_to(self.base_dir)
+                            arcname = f"{backup_prefix}/{rel_path}"
+                            zf.write(template_file, arcname=arcname)
+                    logger.debug(f"✅ テンプレートをバックアップ: {self.templates_dir}")
+                else:
+                    logger.warning(
+                        f"⚠️ テンプレートディレクトリが見つかりません: {self.templates_dir}"
+                    )
+
+                # settings.env をバックアップ（オプション）
+                if self.settings_file.exists():
+                    settings_content = self._prepare_settings_for_backup(
+                        include_api_keys=include_api_keys,
+                        include_passwords=include_passwords,
+                    )
+                    arcname = f"{backup_prefix}/settings.env"
+                    zf.writestr(arcname, settings_content)
+                    logger.debug(f"✅ 設定ファイルをバックアップ: {self.settings_file}")
+                else:
+                    logger.warning(
+                        f"⚠️ 設定ファイルが見つかりません: {self.settings_file}"
+                    )
+
+                # images/ フォルダをバックアップ（オプション）
+                if include_images and self.images_dir.exists():
+                    for image_file in self.images_dir.rglob("*"):
+                        if image_file.is_file():
+                            rel_path = image_file.relative_to(self.base_dir)
+                            arcname = f"{backup_prefix}/{rel_path}"
+                            zf.write(image_file, arcname=arcname)
+                    logger.debug(f"✅ 画像フォルダをバックアップ: {self.images_dir}")
+                elif include_images:
+                    logger.warning(
+                        f"⚠️ 画像ディレクトリが見つかりません: {self.images_dir}"
+                    )
+
+            backup_size_mb = backup_path.stat().st_size / (1024 * 1024)
+            logger.info(
+                f"✅ バックアップ作成完了: {backup_file} ({backup_size_mb:.2f} MB)"
+            )
+
+            return (
+                True,
+                f"バックアップを作成しました\n\nファイル: {backup_file}\nサイズ: {backup_size_mb:.2f} MB",
+            )
 
         except Exception as e:
-            logger.error(f"❌ 復元エラー: {e}")
-            # エラー時は復元ポイントから戻すことを試みる (簡易実装ではログのみ)
-            logger.warning(
-                f"⚠️ 復元ポイント {restore_point_dir} からの手動復旧が必要な場合があります"
+            logger.error(f"❌ バックアップ作成に失敗: {e}")
+            return False, f"バックアップ作成に失敗しました:\n{e}"
+
+    def restore_backup(self, backup_file: str) -> Tuple[bool, str]:
+        """
+        バックアップから復元
+
+        Args:
+            backup_file: バックアップファイルパス（.zip）
+
+        Returns:
+            (成功フラグ, メッセージ)
+        """
+        try:
+            backup_path = Path(backup_file)
+
+            if not backup_path.exists():
+                logger.error(f"❌ バックアップファイルが見つかりません: {backup_file}")
+                return False, f"バックアップファイルが見つかりません:\n{backup_file}"
+
+            if not zipfile.is_zipfile(backup_path):
+                logger.error(f"❌ 無効な ZIP ファイル: {backup_file}")
+                return False, f"無効な ZIP ファイルです:\n{backup_file}"
+
+            logger.info(f"🔄 バックアップから復元しています: {backup_file}")
+
+            # 復元用の一時ディレクトリ
+            temp_dir = self.base_dir / ".backup_restore_temp"
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            temp_dir.mkdir(parents=True, exist_ok=True)
+
+            # ZIP を解凍
+            with zipfile.ZipFile(backup_path, "r") as zf:
+                zf.extractall(temp_dir)
+                logger.debug(f"✅ ZIP を解凍: {temp_dir}")
+
+            # 復元対象ディレクトリを特定（backup_YYYYMMdd_HHMMSS/ のような形式）
+            backup_dirs = [
+                d
+                for d in temp_dir.iterdir()
+                if d.is_dir() and d.name.startswith("backup_")
+            ]
+
+            if not backup_dirs:
+                logger.error(f"❌ バックアップディレクトリが見つかりません")
+                shutil.rmtree(temp_dir)
+                return False, "バックアップファイルの形式が無効です"
+
+            backup_restore_dir = backup_dirs[0]
+
+            # DB を復元
+            db_backup = backup_restore_dir / "data" / "video_list.db"
+            if db_backup.exists():
+                self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # 既存 DB をバックアップ
+                if self.db_path.exists():
+                    backup_db = (
+                        self.db_path.parent
+                        / f"video_list.db.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    )
+                    shutil.copy2(self.db_path, backup_db)
+                    logger.debug(f"✅ 既存 DB をバックアップ: {backup_db}")
+
+                shutil.copy2(db_backup, self.db_path)
+                logger.debug(f"✅ DB を復元: {self.db_path}")
+            else:
+                logger.warning(f"⚠️ バックアップに DB が含まれていません")
+
+            # YouTube キャッシュを復元
+            youtube_cache_backup = (
+                backup_restore_dir / "data" / "youtube_video_detail_cache.json"
             )
-            return False, str(e)
+            if youtube_cache_backup.exists():
+                self.youtube_cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def _create_restore_point(self, target_dir: Path):
-        """復元前の現在状態を退避"""
-        target_dir.mkdir(parents=True, exist_ok=True)
+                # 既存キャッシュをバックアップ
+                if self.youtube_cache_file.exists():
+                    backup_cache = (
+                        self.youtube_cache_file.parent
+                        / f"youtube_video_detail_cache.json.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    )
+                    shutil.copy2(self.youtube_cache_file, backup_cache)
+                    logger.debug(
+                        f"✅ 既存 YouTube キャッシュをバックアップ: {backup_cache}"
+                    )
 
-        # 主要ファイルをコピー
-        if self.settings_file.exists():
-            shutil.copy2(self.settings_file, target_dir / "settings.env")
+                shutil.copy2(youtube_cache_backup, self.youtube_cache_file)
+                logger.debug(f"✅ YouTube キャッシュを復元: {self.youtube_cache_file}")
+            else:
+                logger.warning(
+                    f"⚠️ バックアップに YouTube キャッシュが含まれていません"
+                )
 
-        if self.data_dir.exists():
-            shutil.copytree(self.data_dir, target_dir / "data", dirs_exist_ok=True)
+            # 削除済み動画リストを復元
+            deleted_videos_backup = backup_restore_dir / "data" / "deleted_videos.json"
+            if deleted_videos_backup.exists():
+                self.deleted_videos_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # テンプレートなども必要なら退避 (今回は最小限)
+                # 既存リストをバックアップ
+                if self.deleted_videos_file.exists():
+                    backup_deleted = (
+                        self.deleted_videos_file.parent
+                        / f"deleted_videos.json.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    )
+                    shutil.copy2(self.deleted_videos_file, backup_deleted)
+                    logger.debug(
+                        f"✅ 既存削除済み動画リストをバックアップ: {backup_deleted}"
+                    )
 
-    def get_backup_list(self) -> List[Path]:
-        """バックアップファイル一覧を取得 (新しい順)"""
-        if not self.backup_dir.exists():
-            return []
+                shutil.copy2(deleted_videos_backup, self.deleted_videos_file)
+                logger.debug(f"✅ 削除済み動画リストを復元: {self.deleted_videos_file}")
+            else:
+                logger.warning(f"⚠️ バックアップに削除済み動画リストが含まれていません")
 
-        backups = list(self.backup_dir.glob("*.zip"))
-        backups.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-        return backups
+            # テンプレートを復元
+            templates_backup = backup_restore_dir / "templates"
+            if templates_backup.exists():
+                if self.templates_dir.exists():
+                    backup_templates = (
+                        self.base_dir
+                        / f"templates.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    )
+                    shutil.move(str(self.templates_dir), str(backup_templates))
+                    logger.debug(
+                        f"✅ 既存テンプレートをバックアップ: {backup_templates}"
+                    )
+
+                shutil.copytree(templates_backup, self.templates_dir)
+                logger.debug(f"✅ テンプレートを復元: {self.templates_dir}")
+            else:
+                logger.warning(f"⚠️ バックアップにテンプレートが含まれていません")
+
+            # settings.env を復元
+            settings_backup = backup_restore_dir / "settings.env"
+            if settings_backup.exists():
+                if self.settings_file.exists():
+                    backup_settings = (
+                        self.base_dir
+                        / f"settings.env.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    )
+                    shutil.copy2(self.settings_file, backup_settings)
+                    logger.debug(
+                        f"✅ 既存設定ファイルをバックアップ: {backup_settings}"
+                    )
+
+                shutil.copy2(settings_backup, self.settings_file)
+                logger.debug(f"✅ 設定ファイルを復元: {self.settings_file}")
+            else:
+                logger.warning(f"⚠️ バックアップに設定ファイルが含まれていません")
+
+            # images/ フォルダを復元（存在する場合）
+            images_backup = backup_restore_dir / "images"
+            if images_backup.exists():
+                if self.images_dir.exists():
+                    backup_images = (
+                        self.base_dir
+                        / f"images.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    )
+                    shutil.move(str(self.images_dir), str(backup_images))
+                    logger.debug(f"✅ 既存画像フォルダをバックアップ: {backup_images}")
+
+                shutil.copytree(images_backup, self.images_dir)
+                logger.debug(f"✅ 画像フォルダを復元: {self.images_dir}")
+            else:
+                logger.debug(f"ℹ️ バックアップに画像フォルダが含まれていません")
+
+            # 一時ディレクトリをクリーンアップ
+            shutil.rmtree(temp_dir)
+
+            logger.info(f"✅ バックアップから復元完了")
+            return (
+                True,
+                "バックアップから復元しました\n\n⚠️ アプリケーションを再起動してください",
+            )
+
+        except Exception as e:
+            logger.error(f"❌ バックアップ復元に失敗: {e}")
+            return False, f"バックアップ復元に失敗しました:\n{e}"
+
+    def _prepare_settings_for_backup(
+        self, include_api_keys: bool = False, include_passwords: bool = False
+    ) -> str:
+        """
+        settings.env を バックアップ用に準備（機密情報除外オプション）
+
+        Args:
+            include_api_keys: API キーを含めるか
+            include_passwords: パスワードを含めるか
+
+        Returns:
+            処理済み settings.env の内容
+        """
+        try:
+            with open(self.settings_file, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            lines = []
+            for line in content.split("\n"):
+                # コメント行はそのまま
+                if line.strip().startswith("#"):
+                    lines.append(line)
+                    continue
+
+                # 空行はそのまま
+                if not line.strip():
+                    lines.append(line)
+                    continue
+
+                # 機密情報をチェック＆除外
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    key_upper = key.strip().upper()
+
+                    # API キーを除外（YouTubeチャンネルID・ニコニコユーザーID・Twitchキー含む）
+                    if not include_api_keys:
+                        if any(
+                            k in key_upper
+                            for k in [
+                                "API_KEY",
+                                "CLIENT_ID",
+                                "CLIENT_SECRET",
+                                "YOUTUBE_API_KEY",
+                                "YOUTUBE_CHANNEL_ID",
+                                "NICONICO_USER_ID",
+                                "TWITCH_CLIENT_ID",
+                                "TWITCH_CLIENT_SECRET",
+                                "TWITCH_BROADCASTER",
+                            ]
+                        ):
+                            lines.append(f"# 【バックアップ時に除外】{key}=")
+                            logger.debug(f"  🔐 除外: {key.strip()}")
+                            continue
+
+                    # パスワードを除外
+                    if not include_passwords:
+                        if any(
+                            k in key_upper
+                            for k in ["PASSWORD", "APP_PASSWORD", "WEBHOOK_SECRET"]
+                        ):
+                            lines.append(f"# 【バックアップ時に除外】{key}=")
+                            logger.debug(f"  🔒 除外: {key.strip()}")
+                            continue
+
+                lines.append(line)
+
+            result = "\n".join(lines)
+
+            # 除外したものをログに記録
+            if not include_api_keys or not include_passwords:
+                excluded_count = sum(
+                    1
+                    for line in result.split("\n")
+                    if "【バックアップ時に除外】" in line
+                )
+                if excluded_count > 0:
+                    logger.info(
+                        f"✅ 設定ファイルから {excluded_count} 個の機密情報を除外しました"
+                    )
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"⚠️ settings.env の処理に失敗: {e}")
+            # エラー時は元のコンテンツを返す
+            with open(self.settings_file, "r", encoding="utf-8") as f:
+                return f.read()
 
 
-if __name__ == "__main__":
-    # テスト実行
-    mgr = BackupManager()
-    print("Backup Manager Test")
-    # success, path = mgr.create_backup()
-    # print(f"Backup Result: {success}, {path}")
+def get_backup_manager(base_dir=".") -> BackupManager:
+    """BackupManager インスタンスを取得"""
+    return BackupManager(base_dir)

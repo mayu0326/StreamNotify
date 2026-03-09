@@ -86,7 +86,7 @@ def load_cache():
 
 def classify_videos(videos):
     """動画を分類"""
-    print(f"\n🔍 分類処理中...")
+    print("\n🔍 分類処理中...")
 
     classifications = {}
     results = defaultdict(list)
@@ -218,7 +218,7 @@ def main():
     # DB に適用
     if update_database(classifications):
         print("\n✅ 全ての処理が完了しました！")
-        print(f"\n📊 最終結果:")
+        print("\n📊 最終結果:")
         print(f"  - 通常動画: {len(results['video'])} 件")
         print(f"  - 配信: {len(results['live'])} 件")
         print(f"  - アーカイブ: {len(results['archive'])} 件")

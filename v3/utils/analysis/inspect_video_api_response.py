@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "v2"))
 env_path = Path(__file__).parent.parent / "v2" / "settings.env"
 load_dotenv(env_path)
 
-from plugins.youtube_api_plugin import YouTubeAPIPlugin
+from plugins.youtube_api_plugin import YouTubeAPIPlugin  # noqa: E402
 
 
 def main():

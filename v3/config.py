@@ -15,7 +15,7 @@ logger = logging.getLogger("AppLogger")
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
-__license__ = "GPLv3"
+__license__ = "GPLv2"
 
 DB_PATH = "data/video_list.db"
 
@@ -23,10 +23,16 @@ DB_PATH = "data/video_list.db"
 class OperationMode:
     """動作モードの定義"""
 
-    NORMAL = "normal"  # 通常モード（収集＋手動投稿）
-    AUTO_POST = "auto_post"  # 自動投稿モード（収集＋手動・自動投稿）
+    SELFPOST = "selfpost"  # SELFPOST モード（人間が操作する完全手動投稿モード）
+    AUTOPOST = (
+        "autopost"  # AUTOPOST モード（人間の介入を一切行わない完全自動投稿モード）
+    )
     DRY_RUN = "dry_run"  # ドライランモード（デバッグ用途・投稿機能オフ）
     COLLECT = "collect"  # 収集モード（RSS取得のみ・投稿機能オフ）
+
+    # 後方互換性のため旧名を定義
+    NORMAL = SELFPOST
+    AUTO_POST = AUTOPOST
 
 
 class Config:
@@ -52,8 +58,12 @@ class Config:
         try:
             import importlib.util
 
+            # ★ v3.2.0以降: youtube_api_plugin は plugins/youtube/ に移動
             plugin_exists = (
-                importlib.util.find_spec("plugins.youtube_api_plugin") is not None
+                importlib.util.find_spec("plugins.youtube.youtube_api_plugin")
+                is not None
+                or importlib.util.find_spec("plugins.youtube.youtube_api_plugin")
+                is not None
             )
         except Exception:
             plugin_exists = False
@@ -63,18 +73,12 @@ class Config:
 
         if plugin_exists:
             if self.youtube_api_key:
-                logger.info("有効なAPIキーが設定されています。")
-                logger.info("YouTube連携機能を有効化しました。")
                 self.youtube_api_plugin_enabled = True
             else:
-                logger.info("有効なAPIキーが設定されていません。")
-                logger.info("YouTube連携機能を無効化しました。")
                 self.youtube_api_plugin_enabled = False
         else:
             self.youtube_api_plugin_enabled = False
-            logger.info(
-                "YouTubeAPIプラグインが導入されていません。RSS取得のみで動作します。"
-            )
+            logger.info("[YouTubeAPI]プラグインが導入されていません。")
 
         if not self.youtube_channel_id:
             logger.error(
@@ -85,11 +89,11 @@ class Config:
         # YouTubeAPI未導入時（バリデーション段階ではINFOのみ出力。WARNINGはmain_v3で出力）
         if not plugin_exists:
             logger.info(
-                "YouTubeAPI連携プラグインが未導入です。UCから始まるチャンネルIDのみ利用可能です。"
+                "[YouTubeAPI]プラグイン未導入のため、UCから始まるIDのみ利用可能です。"
             )
             if not self.youtube_channel_id.startswith("UC"):
                 logger.error(
-                    f"YouTubeAPI未導入時はUCから始まるIDのみ許可されます。現在のID: {self.youtube_channel_id}"
+                    f"[YouTubeAPI]プラグイン未導入のため、現在のID: {self.youtube_channel_id}は利用不可能です。"
                 )
                 raise ValueError(
                     "YouTubeAPI未導入時はUCから始まるIDのみ許可されます。設定を確認してください。"
@@ -111,17 +115,58 @@ class Config:
             )
             raise ValueError("BLUESKY_PASSWORD is required")
 
-        # ポーリング間隔
-        try:
-            self.poll_interval_minutes = int(os.getenv("POLL_INTERVAL_MINUTES", 10))
-            if self.poll_interval_minutes < 5 or self.poll_interval_minutes > 30:
+        # ===== YouTube フィード取得モード（RSS ポーリング vs WebSub） =====
+        self.youtube_feed_mode = os.getenv("YOUTUBE_FEED_MODE", "poll").strip().lower()
+
+        # バリデーション
+        if self.youtube_feed_mode not in ("poll", "websub"):
+            logger.warning(
+                f"YOUTUBE_FEED_MODE が無効です: {self.youtube_feed_mode}。'poll' に設定します。"
+            )
+            self.youtube_feed_mode = "poll"
+
+        if self.youtube_feed_mode == "poll":
+            logger.debug("📡 YouTube フィード取得モード: RSS ポーリング")
+        elif self.youtube_feed_mode == "websub":
+            logger.debug(
+                "📡 YouTube フィード取得モード: WebSub（Websubサーバー HTTP API 経由）"
+            )
+
+        # ポーリング間隔（RSS と WebSub で異なる範囲）
+        if self.youtube_feed_mode == "websub":
+            # WebSub モード: 3〜30分（自前インフラなので短い間隔も可能）
+            try:
+                self.poll_interval_minutes = int(
+                    os.getenv("YOUTUBE_WEBSUB_POLL_INTERVAL_MINUTES", 5)
+                )
+                if self.poll_interval_minutes < 3 or self.poll_interval_minutes > 30:
+                    logger.warning(
+                        f"WebSub ポーリング間隔が範囲外です (3〜30): {self.poll_interval_minutes}。5分に設定します。"
+                    )
+                    self.poll_interval_minutes = 5
+                logger.debug(f"📡 WebSub ポーリング間隔: {self.poll_interval_minutes} 分")
+            except ValueError:
                 logger.warning(
-                    f"ポーリング間隔が範囲外です (5〜30): {self.poll_interval_minutes}。10分に設定します。"
+                    "YOUTUBE_WEBSUB_POLL_INTERVAL_MINUTES が無効です。5分に設定します。"
+                )
+                self.poll_interval_minutes = 5
+        else:
+            # RSS ポーリング モード: 10〜60分（外部サーバーなので長めの間隔）
+            try:
+                self.poll_interval_minutes = int(
+                    os.getenv("YOUTUBE_RSS_POLL_INTERVAL_MINUTES", 10)
+                )
+                if self.poll_interval_minutes < 10 or self.poll_interval_minutes > 60:
+                    logger.warning(
+                        f"RSS ポーリング間隔が範囲外です (10〜60): {self.poll_interval_minutes}。10分に設定します。"
+                    )
+                    self.poll_interval_minutes = 10
+                logger.debug(f"📡 RSS ポーリング間隔: {self.poll_interval_minutes} 分")
+            except ValueError:
+                logger.warning(
+                    "YOUTUBE_RSS_POLL_INTERVAL_MINUTES が無効です。10分に設定します。"
                 )
                 self.poll_interval_minutes = 10
-        except ValueError:
-            logger.warning("POLL_INTERVAL_MINUTES が無効です。10分に設定します。")
-            self.poll_interval_minutes = 10
 
         # Bluesky 投稿フラグ（デフォルト: False = ドライラン）
         post_enabled_str = os.getenv("BLUESKY_POST_ENABLED", "false").strip().lower()
@@ -138,32 +183,52 @@ class Config:
             "on",
         )
 
+        # YouTube重複排除オプション（デフォルト: True）
+        # 同じタイトル+チャンネルの動画は優先度ベースで管理（v3.3.1実装）
+        youtube_dedup_str = os.getenv("YOUTUBE_DEDUP_ENABLED", "true").strip().lower()
+        self.youtube_dedup_enabled = youtube_dedup_str in ("true", "1", "yes", "on")
+        if self.youtube_dedup_enabled:
+            logger.info("✅ YouTube重複排除: 有効（優先度ベース管理）")
+        else:
+            logger.info("ℹ️ YouTube重複排除: 無効（すべての動画を登録）")
+
         # デバッグモード（デフォルト: False）
         debug_mode_str = os.getenv("DEBUG_MODE", "false").strip().lower()
         self.debug_mode = debug_mode_str in ("true", "1", "yes", "on")
 
         # 動作モードの判定
         db_exists = Path(DB_PATH).exists()
-        app_mode = os.getenv("APP_MODE", "normal").strip().lower()
+        app_mode_str = os.getenv("APP_MODE", "selfpost").strip().lower()
 
-        # 動作モードの決定ロジック
-        if not db_exists or app_mode == OperationMode.COLLECT:
+        # 後方互換性：old名を新名にマップ
+        if app_mode_str == "normal":
+            app_mode_str = OperationMode.SELFPOST
+        elif app_mode_str == "auto_post":
+            app_mode_str = OperationMode.AUTOPOST
+
+        # 動作モードの決定ロジック（仕様 v1.0）
+        # SELFPOST / AUTOPOST は排他的
+        if not db_exists or app_mode_str == OperationMode.COLLECT:
             self.operation_mode = OperationMode.COLLECT
-        elif app_mode == OperationMode.DRY_RUN:
+        elif app_mode_str == OperationMode.DRY_RUN:
             self.operation_mode = OperationMode.DRY_RUN
-        elif app_mode == OperationMode.AUTO_POST and self.bluesky_post_enabled:
-            self.operation_mode = OperationMode.AUTO_POST
-        elif app_mode == OperationMode.NORMAL or not self.bluesky_post_enabled:
-            self.operation_mode = OperationMode.NORMAL
+        elif app_mode_str == OperationMode.AUTOPOST:
+            # AUTOPOST は Bluesky 投稿が有効化されている場合のみ
+            if self.bluesky_post_enabled:
+                self.operation_mode = OperationMode.AUTOPOST
+            else:
+                logger.warning(
+                    "AUTOPOST モードが指定されていますが、BLUESKY_POST_ENABLED=true に設定してください。SELFPOST モードで起動します。"
+                )
+                self.operation_mode = OperationMode.SELFPOST
+        elif app_mode_str == OperationMode.SELFPOST or not self.bluesky_post_enabled:
+            self.operation_mode = OperationMode.SELFPOST
         else:
-            # デフォルトは通常モード
-            self.operation_mode = OperationMode.NORMAL
+            # デフォルトは SELFPOST モード
+            self.operation_mode = OperationMode.SELFPOST
 
         # 後方互換性のため is_collect_mode を保持
         self.is_collect_mode = self.operation_mode == OperationMode.COLLECT
-
-        # 動作モードのログ出力
-        self._log_operation_mode()
 
         # タイムゾーン（オプション）
         self.timezone = os.getenv("TIMEZONE", "system")
@@ -182,14 +247,14 @@ class Config:
         self.niconico_user_id = os.getenv("NICONICO_USER_ID", "").strip()
         if self.niconico_plugin_exists:
             if self.niconico_user_id:
-                logger.info("有効なユーザーIDが設定されています。")
-                logger.info("ニコニコ連携機能を有効化しました。")
+                logger.debug("有効なユーザーIDが設定されています。")
+                logger.debug("ニコニコ連携機能を有効化しました。")
             else:
-                logger.info("有効なユーザーIDが設定されていません。")
-                logger.info("ニコニコ連携機能を無効化しました。")
+                logger.debug("有効なユーザーIDが設定されていません。")
+                logger.debug("ニコニコ連携機能を無効化しました。")
         else:
-            # バリデーション段階ではINFOのみ
-            logger.info(
+            # バリデーション段階ではDEBUGレベルで抑制
+            logger.debug(
                 "ニコニコプラグインが導入されていません。RSS取得のみで動作します。"
             )
 
@@ -210,11 +275,146 @@ class Config:
             logger.warning("NICONICO_POLL_INTERVAL が無効です。10分に設定します。")
             self.niconico_poll_interval_minutes = 10
 
+        # ★ 新: YouTube Live 動的ポーリング間隔（v3.3.0+ 改訂版）
+        try:
+            self.youtube_live_poll_interval_active = int(
+                os.getenv("YOUTUBE_LIVE_POLL_INTERVAL_ACTIVE", "15")
+            )
+            # 範囲バリデーション (15〜60)
+            if (
+                self.youtube_live_poll_interval_active < 15
+                or self.youtube_live_poll_interval_active > 60
+            ):
+                self.youtube_live_poll_interval_active = 15
+
+            self.youtube_live_poll_interval_completed_min = int(
+                os.getenv("YOUTUBE_LIVE_POLL_INTERVAL_COMPLETED_MIN", "60")
+            )
+            self.youtube_live_poll_interval_completed_max = int(
+                os.getenv("YOUTUBE_LIVE_POLL_INTERVAL_COMPLETED_MAX", "180")
+            )
+
+            self.youtube_live_archive_check_count_max = int(
+                os.getenv("YOUTUBE_LIVE_ARCHIVE_CHECK_COUNT_MAX", "4")
+            )
+            self.youtube_live_archive_check_interval = int(
+                os.getenv("YOUTUBE_LIVE_ARCHIVE_CHECK_INTERVAL", "180")
+            )
+        except ValueError:
+            self.youtube_live_poll_interval_active = 15
+            self.youtube_live_poll_interval_completed_min = 60
+            self.youtube_live_poll_interval_completed_max = 180
+            self.youtube_live_archive_check_count_max = 4
+            self.youtube_live_archive_check_interval = 180
+
+        # ===== AUTOPOST 固有の環境変数（仕様 v1.0） =====
+
+        # AUTOPOST 投稿間隔（分）
+        try:
+            self.autopost_interval_minutes = int(
+                os.getenv("AUTOPOST_INTERVAL_MINUTES", "5")
+            )
+            if (
+                self.autopost_interval_minutes < 1
+                or self.autopost_interval_minutes > 60
+            ):
+                logger.warning(
+                    f"AUTOPOST 間隔が範囲外です (1〜60): {self.autopost_interval_minutes}。5分に設定します。"
+                )
+                self.autopost_interval_minutes = 5
+        except ValueError:
+            logger.warning("AUTOPOST_INTERVAL_MINUTES が無効です。5分に設定します。")
+            self.autopost_interval_minutes = 5
+
+        # AUTOPOST LOOKBACK 時間窓（分）
+        try:
+            self.autopost_lookback_minutes = int(
+                os.getenv("AUTOPOST_LOOKBACK_MINUTES", "30")
+            )
+            if (
+                self.autopost_lookback_minutes < 5
+                or self.autopost_lookback_minutes > 1440
+            ):
+                logger.warning(
+                    f"AUTOPOST LOOKBACK が範囲外です (5〜1440): {self.autopost_lookback_minutes}。30分に設定します。"
+                )
+                self.autopost_lookback_minutes = 30
+        except ValueError:
+            logger.warning("AUTOPOST_LOOKBACK_MINUTES が無効です。30分に設定します。")
+            self.autopost_lookback_minutes = 30
+
+        # AUTOPOST 未投稿大量検知閾値（件数）
+        try:
+            self.autopost_unposted_threshold = int(
+                os.getenv("AUTOPOST_UNPOSTED_THRESHOLD", "20")
+            )
+            if (
+                self.autopost_unposted_threshold < 1
+                or self.autopost_unposted_threshold > 1000
+            ):
+                logger.warning(
+                    f"AUTOPOST 閾値が範囲外です (1〜1000): {self.autopost_unposted_threshold}。20件に設定します。"
+                )
+                self.autopost_unposted_threshold = 20
+        except ValueError:
+            logger.warning("AUTOPOST_UNPOSTED_THRESHOLD が無効です。20件に設定します。")
+            self.autopost_unposted_threshold = 20
+
+        # AUTOPOST 動画種別フィルタ
+        autopost_include_normal = (
+            os.getenv("AUTOPOST_INCLUDE_NORMAL", "true").strip().lower()
+        )
+        self.autopost_include_normal = autopost_include_normal in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
+
+        autopost_include_shorts = (
+            os.getenv("AUTOPOST_INCLUDE_SHORTS", "false").strip().lower()
+        )
+        self.autopost_include_shorts = autopost_include_shorts in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
+
+        autopost_include_member_only = (
+            os.getenv("AUTOPOST_INCLUDE_MEMBER_ONLY", "false").strip().lower()
+        )
+        self.autopost_include_member_only = autopost_include_member_only in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
+
+        autopost_include_premiere = (
+            os.getenv("AUTOPOST_INCLUDE_PREMIERE", "true").strip().lower()
+        )
+        self.autopost_include_premiere = autopost_include_premiere in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
+
+        # YouTube Live AUTOPOST モード（新統合環境変数、後方互換性あり）
+        self.youtube_live_autopost_mode = (
+            os.getenv("YOUTUBE_LIVE_AUTO_POST_MODE", "").strip().lower()
+        )
+
+        # 旧環境変数からのマッピング（後方互換性）
+        # v3.2.0: Advanced Live Auto-post configuration removed.
+        # Live posting is handled by simpler logic or manual intervention.
+
     def _log_operation_mode(self):
         """現在の動作モードをログに出力"""
         mode_descriptions = {
-            OperationMode.NORMAL: "通常モード（収集＋手動投稿）",
-            OperationMode.AUTO_POST: "自動投稿モード（収集＋手動・自動投稿）",
+            OperationMode.SELFPOST: "SELFPOST（人間が操作する完全手動投稿モード）",
+            OperationMode.AUTOPOST: "AUTOPOST（人間の介入を一切行わない完全自動投稿モード）",
             OperationMode.DRY_RUN: "ドライランモード（デバッグ用途・投稿機能オフ）",
             OperationMode.COLLECT: "収集モード（RSS取得のみ・投稿機能オフ）",
         }
@@ -250,12 +450,25 @@ class Config:
             logger.warning(
                 "🧪 デバッグモードです。投稿のシミュレーションのみ行い、実際には投稿しません。"
             )
-        elif self.operation_mode == OperationMode.NORMAL:
-            logger.info("📝 投稿対象をGUIから設定し、手動で投稿を行ってください。")
-        elif self.operation_mode == OperationMode.AUTO_POST:
-            logger.info("🚀 投稿対象をGUIから設定後、5分間隔で順次自動投稿します。")
+        elif self.operation_mode == OperationMode.SELFPOST:
+            logger.info("👤 投稿対象をGUIから設定し、手動で投稿を行ってください。")
+        elif self.operation_mode == OperationMode.AUTOPOST:
+            logger.info(
+                "🤖 自動投稿モード。人間の介入なく自動投稿が実行されます。GUI投稿操作は無効化されます。"
+            )
+
+
+# グローバルキャッシュ（シングルトンパターン）
+_config_cache = {}
 
 
 def get_config(env_path="settings.env") -> Config:
-    """設定オブジェクトを取得"""
-    return Config(env_path)
+    """設定オブジェクトを取得（キャッシング機構付き）
+
+    初回呼び出し時に Config を生成し、以降は同じインスタンスを返す。
+    これにより、複数箇所から get_config() が呼ばれても、
+    ログの重複出力を防ぐことができる。
+    """
+    if env_path not in _config_cache:
+        _config_cache[env_path] = Config(env_path)
+    return _config_cache[env_path]
