@@ -1,12 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-YouTube Live 分類ロジック - 本番 DB 一括適用
-
-本番 DB の全 YouTube 動画に対して新分類ロジックを適用し、
-結果を DB に反映（content_type, live_status, is_premiere を更新）
-"""
-
 import sys
 import shutil
 import sqlite3
@@ -21,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "v2"))
 env_path = Path(__file__).parent.parent / "v2" / "settings.env"
 load_dotenv(env_path)
 
-from plugins.youtube_api_plugin import YouTubeAPIPlugin
+from plugins.youtube_api_plugin import YouTubeAPIPlugin  # noqa: E402
 
 
 def classify_video(details):
@@ -87,7 +78,6 @@ def main():
 
     for i, video in enumerate(youtube_videos, 1):
         video_id = video.get("video_id")
-        title = video.get("title", "")[:30]
         db_id = video.get("id")
 
         current_type = video.get("content_type", "?")

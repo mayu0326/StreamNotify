@@ -7,5 +7,5 @@
 タイトル: {{ title }}
 配信者: {{ broadcaster_user_name }} ({{ broadcaster_user_login }})
 カテゴリ: {{ category_name }}
-開始日時: {{ start_time | datetimeformat }}
+開始日時: {{ published_at | datetimeformat }}
 視聴URL: {{ stream_url }}

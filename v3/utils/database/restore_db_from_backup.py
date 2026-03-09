@@ -12,7 +12,7 @@ backup_path = Path("v3/data/video_list.backup_20251218_104027.db")
 
 if backup_path.exists():
     shutil.copy(backup_path, db_path)
-    print(f"✅ バックアップから復元しました")
+    print("✅ バックアップから復元しました")
     print(f"   Source: {backup_path}")
     print(f"   Dest:   {db_path}")
 else:

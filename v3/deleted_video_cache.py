@@ -14,6 +14,7 @@ Stream notify on Bluesky - 削除済み動画除外リスト管理
 }
 """
 
+import os
 import json
 import logging
 from pathlib import Path
@@ -47,9 +48,7 @@ class DeletedVideoCache:
     def _load(self) -> None:
         """JSON ファイルから読み込み"""
         if not self.cache_file.exists():
-            logger.debug(
-                f"除外動画リスト JSON が存在しません。新規作成します: {self.cache_file}"
-            )
+            logger.debug(f"除外動画リスト JSON が存在しません。新規作成します: {self.cache_file}")
             self._create_default()
             self._save()
             return
@@ -127,9 +126,7 @@ class DeletedVideoCache:
 
         # 重複チェック
         if video_id in self.data[source_lower]:
-            logger.debug(
-                f"既に除外動画リスト登録済みです: {video_id} (source: {source})"
-            )
+            logger.debug(f"既に除外動画リスト登録済みです: {video_id} (source: {source})")
             return True
 
         # リストに追加
@@ -212,9 +209,7 @@ class DeletedVideoCache:
         return {source_lower: self.data.get(source_lower, [])}
 
 
-def get_deleted_video_cache(
-    cache_file: str = "data/deleted_videos.json",
-) -> DeletedVideoCache:
+def get_deleted_video_cache(cache_file: str = "data/deleted_videos.json") -> DeletedVideoCache:
     """グローバル キャッシュインスタンスを取得（シングルトン）"""
     global _deleted_video_cache
     if _deleted_video_cache is None:

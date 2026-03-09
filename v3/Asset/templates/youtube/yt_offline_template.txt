@@ -2,7 +2,7 @@
 
 チャンネル: {{ channel_name }}
 タイトル: {{ title }}
-開始日時: {{ start_time | datetimeformat }}
+開始日時: {{ published_at | datetimeformat }}
 配信URL: {{ stream_url }}
 
 またの配信をお楽しみに！

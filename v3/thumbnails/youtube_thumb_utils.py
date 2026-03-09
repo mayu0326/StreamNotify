@@ -16,11 +16,23 @@ import os
 # 親ディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from youtube_rss import YouTubeRSS
+from youtube_core.youtube_rss import YouTubeRSS
 from image_manager import get_image_manager
 from database import get_database
 
-logger = logging.getLogger("AppLogger")
+
+# ★ v3.3.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
+def _get_logger():
+    """ロギングプラグイン対応のロガー取得（ThumbnailsLogger優先、未導入時はAppLogger）"""
+    thumbnails_logger = logging.getLogger("ThumbnailsLogger")
+    # ThumbnailsLogger にハンドラーが存在する = プラグイン導入時
+    if thumbnails_logger.handlers:
+        return thumbnails_logger
+    # プラグイン未導入時は AppLogger にフォールバック
+    return logging.getLogger("AppLogger")
+
+
+logger = _get_logger()
 
 
 class YouTubeThumbManager:
@@ -90,10 +102,74 @@ class YouTubeThumbManager:
             youtube_logger.warning(f"[自動画像取得エラー] {video_id}: {e}")
             return False
 
+    def ensure_websub_images(self, videos: list) -> int:
+        """
+        WebSub から取得した動画のサムネイル画像をダウンロード・保存する。
+
+        Args:
+            videos: WebSub から取得した video 辞書のリスト
+                   各要素に thumbnail_url を含む
+
+        Returns:
+            int: ダウンロード・保存したサムネイル数
+        """
+        youtube_logger = logging.getLogger("YouTubeLogger")
+        thumb_saved = 0
+
+        try:
+            youtube_logger.info(f"[WebSub サムネイル処理] 処理開始: {len(videos)} 件")
+
+            for i, video in enumerate(videos, 1):
+                video_id = video.get("video_id", "")
+                thumbnail_url = video.get("thumbnail_url", "")
+
+                youtube_logger.debug(
+                    f"[WebSub サムネイル処理 {i}/{len(videos)}] {video_id}: "
+                    f"thumbnail_url={'あり' if thumbnail_url else 'なし'}"
+                )
+
+                if not video_id:
+                    youtube_logger.warning(
+                        f"[WebSub サムネイル処理] video_id が空: スキップ"
+                    )
+                    continue
+
+                if not thumbnail_url:
+                    youtube_logger.debug(
+                        f"[WebSub サムネイル処理] {video_id}: thumbnail_url が空: スキップ"
+                    )
+                    continue
+
+                youtube_logger.info(
+                    f"[WebSub サムネイル処理] {video_id}: ダウンロード開始"
+                )
+                if self.ensure_image_download(video_id, thumbnail_url):
+                    thumb_saved += 1
+                    youtube_logger.info(f"[WebSub サムネイル処理] {video_id}: ✅ 成功")
+                else:
+                    youtube_logger.warning(
+                        f"[WebSub サムネイル処理] {video_id}: ❌ 失敗"
+                    )
+
+            youtube_logger.info(
+                f"[WebSub サムネイル処理] 完了: {thumb_saved}/{len(videos)} 件"
+            )
+            return thumb_saved
+
+        except Exception as e:
+            youtube_logger.error(
+                f"[WebSub サムネイル処理] エラー: {e}",
+                exc_info=True,
+            )
+            return 0
+
     def fetch_and_ensure_images(self, channel_id: str) -> int:
         """
         YouTube チャンネルの RSS をフェッチして DB に保存し、
         新規動画の画像を自動ダウンロード・保存する。
+
+        また、RSS から取得した新規動画に対して、YouTube Live プラグインで
+        配信予定枠（upcoming）の自動分類を実行する。
 
         Args:
             channel_id: YouTube チャンネル ID
@@ -109,6 +185,37 @@ class YouTubeThumbManager:
             # RSS をフェッチ・パース・DB 保存（youtube_rss.py で実行）
             yt_rss = YouTubeRSS(channel_id)
             saved_count = yt_rss.save_to_db(self.db)
+
+            # ★ 新: YouTube Live プラグインで RSS新規追加動画を自動分類
+            # 配信予定枠（upcoming）などの詳細情報を API から取得して DB を更新
+            if saved_count > 0:
+                try:
+                    from plugin_manager import PluginManager
+
+                    pm = PluginManager()
+                    live_plugin = pm.get_plugin("youtube_live_plugin")
+                    if live_plugin and live_plugin.is_available():
+                        youtube_logger.debug(
+                            f"🔍 YouTube Live プラグイン: RSS新規追加 {saved_count} 件を自動分類中..."
+                        )
+                        updated = live_plugin._update_unclassified_videos()
+                        if updated > 0:
+                            youtube_logger.info(
+                                f"✅ YouTube Live 自動分類: {updated} 件更新（配信予定枠など検出）"
+                            )
+                        else:
+                            youtube_logger.debug(
+                                f"ℹ️ YouTube Live 自動分類: ライブ関連の動画なし"
+                            )
+                except ImportError:
+                    youtube_logger.debug(
+                        "YouTube Live プラグインモジュールが見つかりません"
+                    )
+                except Exception as e:
+                    youtube_logger.warning(
+                        f"⚠️ YouTube Live プラグインでの自動分類に失敗: {e}"
+                    )
+                    # エラーでも処理を続行
 
             # 新規動画の画像をダウンロード・保存
             if saved_count > 0:

@@ -24,11 +24,23 @@ except ImportError:
         "⚠️ Pillow (PIL) がインストールされていません。画像情報取得機能は制限されます。"
     )
 
-logger = logging.getLogger("AppLogger")
+
+# ★ v3.3.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
+def _get_logger():
+    """ロギングプラグイン対応のロガー取得（ThumbnailsLogger優先、未導入時はAppLogger）"""
+    thumbnails_logger = logging.getLogger("ThumbnailsLogger")
+    # ThumbnailsLogger にハンドラーが存在する = プラグイン導入時
+    if thumbnails_logger.handlers:
+        return thumbnails_logger
+    # プラグイン未導入時は AppLogger にフォールバック
+    return logging.getLogger("AppLogger")
+
+
+logger = _get_logger()
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
-__license__ = "GPLv3"
+__license__ = "GPLv2"
 
 __version__ = "1.0.0"
 
@@ -38,7 +50,8 @@ def get_youtube_thumbnail_url(video_id: str) -> Optional[str]:
     YouTube のサムネイル URL を複数品質から取得
 
     複数の品質レベルを試行し、最初に取得できた URL を返す。
-    API 呼び出しは不要で、HTTP ステータスコードで品質確認。
+    ★ v3.3.0+: パフォーマンス最適化 - デフォルト URL を直接返す
+    （HTTP リクエストなしで URL を構築）
 
     優先度: maxres (1280x720) → sd (640x480) → hq (480x360) →
             mq (320x180) → default (120x90)
@@ -52,28 +65,15 @@ def get_youtube_thumbnail_url(video_id: str) -> Optional[str]:
     if not video_id:
         return None
 
+    # ★ 修正: maxresdefault.jpg（最高品質 1280x720）を使用
+    # 全ての動画で利用可能（存在しない場合は下位品質にフォールバック）
     base = f"https://i.ytimg.com/vi/{video_id}"
-    candidates = [
-        "maxresdefault.jpg",  # 1280x720 - 最高品質
-        "sddefault.jpg",  # 640x480
-        "hqdefault.jpg",  # 480x360
-        "mqdefault.jpg",  # 320x180
-        "default.jpg",  # 120x90 - 常に存在
-    ]
+    maxres_url = f"{base}/maxresdefault.jpg"
 
-    for name in candidates:
-        url = f"{base}/{name}"
-        try:
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                logger.debug(f"✅ YouTube サムネイル取得: {video_id} -> {name}")
-                return url
-        except Exception as e:
-            logger.debug(f"⚠️ YouTube サムネイル試行失敗: {name} - {e}")
-            continue
-
-    logger.warning(f"⚠️ YouTube サムネイル取得失敗: {video_id}")
-    return None
+    logger.debug(
+        f"✅ YouTube サムネイル URL 構築: {video_id} -> maxresdefault.jpg (1280x720)"
+    )
+    return maxres_url
 
 
 class ImageManager:
@@ -290,6 +290,42 @@ class ImageManager:
         except Exception as e:
             logger.error(f"❌ 画像削除失敗: {file_path} - {e}")
         return False
+
+    def delete_images_by_video_id(self, site: str, image_filename: str) -> bool:
+        """
+        動画に関連するすべての画像ファイルを削除
+
+        ★ 動画削除時に使用：import・autopost 両方のモードから削除
+
+        Args:
+            site: サイト名（YouTube, Niconico, Twitch）
+            image_filename: 削除対象のファイル名
+
+        Returns:
+            いずれかの削除に成功した場合 True、全て失敗した場合 False
+        """
+        if not image_filename:
+            logger.debug("⚠️ 画像ファイル名が指定されていません")
+            return False
+
+        deleted_any = False
+
+        # import モードの画像を削除
+        if self.delete_image(site, "import", image_filename):
+            logger.info(f"✅ import モード画像を削除: {site}/{image_filename}")
+            deleted_any = True
+
+        # autopost モードの画像も削除（存在する場合）
+        autopost_path = self.base_dir / site / "autopost" / image_filename
+        if autopost_path.exists():
+            try:
+                autopost_path.unlink()
+                logger.info(f"✅ autopost モード画像を削除: {site}/{image_filename}")
+                deleted_any = True
+            except Exception as e:
+                logger.warning(f"⚠️ autopost モード画像削除失敗: {autopost_path} - {e}")
+
+        return deleted_any
 
     def get_image_info(self, site: str, mode: str, filename: str) -> Optional[dict]:
         """

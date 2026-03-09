@@ -16,7 +16,7 @@ from tzlocal import get_localzone
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
-__license__ = "GPLv3"
+__license__ = "GPLv2"
 
 # ロギング設定
 util_logger = logging.getLogger("AppLogger.Utils")
@@ -27,7 +27,7 @@ def format_datetime_filter(iso_datetime_str, fmt="%Y-%m-%d %H:%M %Z"):
     ISO 形式の日時文字列を指定タイムゾーン・フォーマットで整形して返す
 
     Args:
-        iso_datetime_str: ISO 8601 形式の日時文字列（例: "2023-10-27T10:00:00Z"）
+        iso_datetime_str: ISO 8601 形式の日時文字列（例: "2023-10-27T10:00:00Z"、"2025-09-17T19:03+0900"）
         fmt: 出力フォーマット文字列
 
     Returns:
@@ -37,8 +37,24 @@ def format_datetime_filter(iso_datetime_str, fmt="%Y-%m-%d %H:%M %Z"):
         return ""
 
     try:
+        # ★ ニコニコ形式 '2025-09-17T19:03+0900' に対応
+        # タイムゾーン形式を正規化（+0900 → +09:00）
+        iso_str = iso_datetime_str.replace("Z", "+00:00")
+
+        # タイムゾーン部分を確認して正規化
+        if "+" in iso_str or "-" in iso_str.split("T")[-1]:
+            # 最後の + または - を見つけてタイムゾーン部分を抽出
+            if "+" in iso_str:
+                parts = iso_str.rsplit("+", 1)
+                tz_part = parts[1]
+                if len(tz_part) == 4 and ":" not in tz_part:  # 0900 形式
+                    iso_str = f"{parts[0]}+{tz_part[:2]}:{tz_part[2:]}"
+            elif iso_str[-5] == "-" and ":" not in iso_str[-5:]:  # -0900 形式
+                tz_part = iso_str[-4:]
+                iso_str = iso_str[:-4] + f"-{tz_part[:2]}:{tz_part[2:]}"
+
         # ISO 形式の文字列を UTC として解釈
-        dt_utc = datetime.fromisoformat(iso_datetime_str.replace("Z", "+00:00"))
+        dt_utc = datetime.fromisoformat(iso_str)
 
         # 環境変数からタイムゾーンを取得（未指定ならシステムローカル）
         target_tz_name = os.getenv("TIMEZONE", "system")

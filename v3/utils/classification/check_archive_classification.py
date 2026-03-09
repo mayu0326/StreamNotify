@@ -4,10 +4,6 @@
 本番 DB のアーカイブ分類確認スクリプト
 """
 
-import sys
-
-sys.path.insert(0, "v3")
-
 from database import get_database
 
 db = get_database("v3/data/video_list.db")

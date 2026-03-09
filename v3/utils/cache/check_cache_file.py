@@ -21,11 +21,11 @@ if cache_file.exists():
     with open(cache_file, "r", encoding="utf-8") as f:
         cache_data = json.load(f)
 
-    print(f"\n📊 キャッシュ統計:")
+    print("\n📊 キャッシュ統計:")
     print(f"   キャッシュ件数: {len(cache_data)} 件")
 
     # サンプル表示
-    print(f"\n📋 サンプル（最初の3件）:")
+    print("\n📋 サンプル（最初の3件）:")
     for i, (video_id, entry) in enumerate(list(cache_data.items())[:3], 1):
         title = entry.get("data", {}).get("snippet", {}).get("title", "N/A")
         timestamp = entry.get("timestamp", 0)

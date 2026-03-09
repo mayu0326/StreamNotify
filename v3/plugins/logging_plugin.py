@@ -22,7 +22,7 @@ from plugin_interface import NotificationPlugin
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
-__license__ = "GPLv3"
+__license__ = "GPLv2"
 
 # シングルトン用キャッシュ
 _logging_plugin_cache = {}
@@ -47,10 +47,26 @@ class FlushTimedRotatingFileHandler(TimedRotatingFileHandler):
         try:
             msg = self.format(record)
             stream = self.stream
+
+            # ★ 新: stream が None でないかチェック（スレッドセーフ）
+            # マルチスレッド環境でハンドラーが閉じられた場合の対応
+            if stream is None:
+                # ストリームを再度取得してみる
+                try:
+                    stream = self._open()
+                except Exception:
+                    self.handleError(record)
+                    return
+
             # 改行コードをLFに統一（CRLFを避ける）
             msg = msg.replace("\r\n", "\n")
-            stream.write(msg + "\n")
-            stream.flush()
+
+            try:
+                stream.write(msg + "\n")
+                stream.flush()
+            except ValueError:
+                # I/O operation on closed file
+                self.handleError(record)
         except Exception:
             self.handleError(record)
 

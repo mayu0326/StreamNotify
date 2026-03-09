@@ -12,6 +12,8 @@ Vanilla 環境では、テンプレート仕様とファイル構成が整備さ
 
 import os
 import logging
+import random
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
 from jinja2 import Environment, TemplateSyntaxError
@@ -20,7 +22,392 @@ logger = logging.getLogger("AppLogger")
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
-__license__ = "GPLv3"
+__license__ = "GPLv2"
+
+# ============ v3.2.0: Jinja2 動的変数フィルター ============
+
+
+def _format_date_filter(value=None, format_str="%Y年%m月%d日") -> str:
+    """
+    現在日時を指定形式でフォーマット
+
+    使用例: {{ current_date | format_date }}
+           {{ current_date | format_date('%Y-%m-%d') }}
+    """
+    if value is None:
+        value = datetime.now()
+    elif isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except Exception:
+            return str(value)
+
+    if isinstance(value, datetime):
+        return value.strftime(format_str)
+    return str(value)
+
+
+def _format_datetime_filter(value=None, format_str="%Y年%m月%d日 %H:%M") -> str:
+    """
+    現在日時を指定形式でフォーマット（時刻含む）
+
+    使用例: {{ current_datetime | format_datetime }}
+           {{ current_datetime | format_datetime('%Y-%m-%d %H:%M:%S') }}
+    """
+    if value is None:
+        value = datetime.now()
+    elif isinstance(value, str):
+        try:
+            # ★ ニコニコ形式 '2025-09-17T19:03+0900' に対応
+            # ISO 8601 形式で :00 がない場合は補完
+            if "+" in value or value.endswith("Z"):
+                # タイムゾーン形式を正規化
+                if value.count("+") == 1 and ":" not in value.split("+")[1]:
+                    # +0900 形式を +09:00 に変換
+                    parts = value.split("+")
+                    tz = parts[1]
+                    if len(tz) == 4:  # 0900 → 09:00
+                        value = f"{parts[0]}+{tz[:2]}:{tz[2:]}"
+                elif value.count("-") >= 3:  # -09:00 形式をチェック
+                    # タイムゾーンが -0900 形式の場合も同様に処理
+                    if value[-5] in ["+", "-"] and ":" not in value[-5:]:
+                        tz_part = value[-4:]
+                        value = value[:-4] + f"{value[-5]}{tz_part[:2]}:{tz_part[2:]}"
+
+            value = datetime.fromisoformat(value)
+        except Exception as e:
+            logger.debug(f"⚠️ 日時パース失敗: {value} - {e}")
+            return str(value)
+
+    if isinstance(value, datetime):
+        return value.strftime(format_str)
+    return str(value)
+
+
+def _random_emoji_filter(emoji_list=None) -> str:
+    """
+    ランダムに絵文字を選択
+
+    使用例: {{ | random_emoji }}                              （デフォルト絵文字から選択）
+           {{ | random_emoji('🎬,🎥,📹') }}  （カスタム絵文字リストから選択）
+    """
+    if emoji_list is None:
+        # デフォルト絵文字リスト
+        emoji_list = ["🎬", "🎥", "📹", "✨", "🌟", "⭐", "🎯", "🎪", "🎨", "🎭"]
+    elif isinstance(emoji_list, str):
+        emoji_list = emoji_list.split(",")
+
+    return random.choice(emoji_list)
+
+
+def calculate_extended_time_for_event(video_dict: Dict[str, Any]) -> None:
+    """
+    イベント情報から拡張時刻を計算して video_dict に追加
+
+    ★ v3.3.0: 朝早い時刻（00:00～12:00）を拡張時刻として表現
+
+    例: published_at が 2025-12-29 03:00 の場合
+    → 2025-12-29 の 27 時として表現（同日基準日 27 時）
+
+    つまり：
+    - displayed_date = 2025-12-29（DB保存日付）
+    - extended_hour = 27（24 + 3）
+    - テンプレート出力: 「2025年12月29日27時(2025年12月30日(火)午前3時)」
+
+    Args:
+        video_dict: 動画情報辞書（published_at を含む）
+
+    Returns:
+        None。video_dict に以下を追加:
+        - extended_hour: 拡張時刻（27など、朝早い場合は 24 + 時刻）
+        - extended_display_date: 拡張表示用の日付（DB保存日付）
+    """
+    try:
+        published_at_str = video_dict.get("published_at")
+        if not published_at_str:
+            return
+
+        # 日時を解析
+        try:
+            published_at = datetime.fromisoformat(published_at_str)
+        except Exception:
+            return
+
+        hour = published_at.hour
+        date = published_at.date()
+
+        # ★ 朝早い時刻（00:00～12:00）の場合、拡張時刻として解釈
+        if hour < 12:
+            # 拡張時刻 = 24 + 時刻（例：27 = 24 + 3）
+            extended_hour = 24 + hour
+            # 表示日付は DB 保存日付（変更なし）
+            extended_display_date = date.strftime("%Y-%m-%d")
+
+            logger.debug(
+                f"🔢 拡張時刻: {date} {hour:02d}:00 → {extended_display_date} {extended_hour}時"
+            )
+        else:
+            # 正午以降の場合は通常時刻
+            extended_hour = hour
+            extended_display_date = date.strftime("%Y-%m-%d")
+            logger.debug(f"🔢 通常時刻: {date} {hour:02d}:00")
+
+        video_dict["extended_hour"] = extended_hour
+        video_dict["extended_display_date"] = extended_display_date
+
+    except Exception as e:
+        logger.warning(f"⚠️ 拡張時刻計算エラー: {e}")
+
+
+def _weekday_filter(value=None) -> str:
+    """
+    曜日を日本語で返す
+
+    使用例: {{ published_at | weekday }}
+    """
+    if value is None:
+        value = datetime.now()
+    elif isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except Exception:
+            return str(value)
+
+    if isinstance(value, datetime):
+        weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+        return weekdays[value.weekday()]
+    return str(value)
+
+
+# ============ v3.3.0: 24時以降の時刻正規化機能 ============
+
+
+def parse_extended_time(time_str: str) -> Optional[Dict[str, Any]]:
+    """
+    24時以降の拡張時刻表記をパース・正規化
+
+    入力形式:
+      - "25:00" → 次の日の1:00
+      - "27:30" → 次の日の3:30
+      - "30:00" → 次の日の6:00
+      - "14:30" → 当日の14:30（24時以下は通常通り）
+
+    Args:
+        time_str: 時刻文字列 ("HH:MM" 形式)
+
+    Returns:
+        {
+            "original": "25:00",                      # 元の入力
+            "normalized_24h": "01:00",                # 正規化後の24時間制表記
+            "hours_24h": 1,                          # 正規化後の時（0-23）
+            "minutes": 0,                            # 分
+            "day_offset": 1,                         # 日付オフセット（0=当日、1=翌日など）
+            "is_extended": True,                     # 24時以降フラグ
+            "display_with_date": "翌日1:00時"        # 日付付き表示
+        }
+        パース失敗時は None
+    """
+    try:
+        if isinstance(time_str, str):
+            parts = time_str.strip().split(":")
+            if len(parts) != 2:
+                return None
+
+            hours = int(parts[0])
+            minutes = int(parts[1])
+
+            # 基本検証：範囲 0-30時、分は 0-59
+            if hours < 0 or hours > 30 or minutes < 0 or minutes > 59:
+                logger.warning(
+                    f"⚠️ 拡張時刻の範囲エラー: {time_str} (範囲: 00:00-30:00)"
+                )
+                return None
+
+            # 24時以降の場合は日付をオフセット
+            day_offset = 0
+            hours_24h = hours
+
+            if hours >= 24:
+                day_offset = hours // 24
+                hours_24h = hours % 24
+
+            is_extended = hours >= 24
+
+            return {
+                "original": time_str,
+                "normalized_24h": f"{hours_24h:02d}:{minutes:02d}",
+                "hours_24h": hours_24h,
+                "minutes": minutes,
+                "day_offset": day_offset,
+                "is_extended": is_extended,
+                "display_with_date": (
+                    f"{'翌日' if day_offset == 1 else f'{day_offset}日後'}{hours_24h:02d}:{minutes:02d}時"
+                    if is_extended
+                    else f"{hours_24h:02d}:{minutes:02d}時"
+                ),
+            }
+
+    except (ValueError, IndexError):
+        logger.warning(f"⚠️ 拡張時刻のパースエラー: {time_str}")
+        return None
+
+    return None
+
+
+def normalize_datetime_with_extended_time(
+    date_str: str, time_str: str
+) -> Optional[Dict[str, Any]]:
+    """
+    日付と拡張時刻（24時以降）をパースして正規化
+
+    Args:
+        date_str: 日付文字列 ("YYYY-MM-DD" or ISO形式)
+        time_str: 時刻文字列 ("HH:MM" 形式、24時以降対応)
+
+    Returns:
+        {
+            "original_date": "2025-12-21",
+            "original_time": "27:00",
+            "normalized_date": "2025-12-22",            # 正規化後の日付（翌日）
+            "normalized_time": "03:00",                # 正規化後の時刻（24時間制）
+            "normalized_datetime": "2025-12-22T03:00", # ISO形式の日時
+            "display": "2025年12月22日(月)午前3時00分", # 日本語表示（翌日！）
+            "is_extended": True,                        # 24時以降フラグ
+            "day_offset": 1,                           # 日付オフセット
+        }
+        パース失敗時は None
+
+    例:
+        入力:  2025-12-21 27:00 → 出力: 2025年12月22日午前3時00分
+        入力:  2025-12-21 25:30 → 出力: 2025年12月22日午前1時30分
+    """
+    try:
+        # 日付をパース
+        if isinstance(date_str, str):
+            # ISO形式や YYYY-MM-DD に対応
+            if "T" in date_str:
+                date_part = date_str.split("T")[0]
+            else:
+                date_part = date_str
+
+            base_date = datetime.strptime(date_part, "%Y-%m-%d").date()
+        else:
+            return None
+
+        # 時刻をパース
+        time_info = parse_extended_time(time_str)
+        if time_info is None:
+            return None
+
+        # 日付をオフセット
+        normalized_date = base_date + timedelta(days=time_info["day_offset"])
+
+        # 正規化された日時を生成
+        normalized_dt = datetime.combine(
+            normalized_date,
+            datetime.min.time().replace(
+                hour=time_info["hours_24h"], minute=time_info["minutes"]
+            ),
+        )
+
+        # 日本語表示を生成
+        weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
+        weekday = weekdays_jp[normalized_dt.weekday()]
+        period = "午前" if time_info["hours_24h"] < 12 else "午後"
+        hour_12h = (
+            time_info["hours_24h"]
+            if time_info["hours_24h"] <= 12
+            else time_info["hours_24h"] - 12
+        )
+        if hour_12h == 0:
+            hour_12h = 12
+
+        display = f"{normalized_date.year}年{normalized_date.month}月{normalized_date.day}日({weekday}){period}{hour_12h}時{time_info['minutes']:02d}分"
+
+        return {
+            "original_date": date_part,
+            "original_time": time_str,
+            "normalized_date": str(normalized_date),
+            "normalized_time": time_info["normalized_24h"],
+            "normalized_datetime": normalized_dt.isoformat(),
+            "display": display,
+            "is_extended": time_info["is_extended"],
+            "day_offset": time_info["day_offset"],
+        }
+
+    except Exception as e:
+        logger.warning(f"⚠️ 日時の正規化エラー: {date_str} {time_str} - {e}")
+        return None
+
+
+def _extended_time_filter(value: str) -> str:
+    """
+    Jinja2 フィルター: 拡張時刻を正規化（24時以降対応）
+
+    使用例:
+        {{ "25:30" | extended_time }}                → "01:30"
+        {{ "27:00" | extended_time_display }}        → "翌日3:00時"
+
+    Args:
+        value: 時刻文字列 ("HH:MM")
+
+    Returns:
+        正規化されたHH:MM形式の時刻
+    """
+    time_info = parse_extended_time(value)
+    if time_info:
+        return time_info["normalized_24h"]
+    return str(value)
+
+
+def _extended_time_display_filter(value: str) -> str:
+    """
+    Jinja2 フィルター: 拡張時刻を日付付き表示
+
+    使用例:
+        {{ "25:30" | extended_time_display }}        → "翌日1:30時"
+        {{ "30:00" | extended_time_display }}        → "翌日6:00時"
+
+    Args:
+        value: 時刻文字列 ("HH:MM")
+
+    Returns:
+        日付付きの表示文字列
+    """
+    time_info = parse_extended_time(value)
+    if time_info:
+        return time_info["display_with_date"]
+    return str(value)
+
+
+def _extended_datetime_display_filter(date_str: str, time_str: str) -> str:
+    """
+    Jinja2 フィルター: 拡張時刻を含む日時を日本語表示
+
+    Jinja2 では複数引数フィルターが難しいため、テンプレート内では
+    以下のように使用してください：
+
+    使用例:
+        {% set normalized = normalize_extended_datetime('2025-12-21', '27:00') %}
+        放送日：{{ normalized.display }}
+        ({{ normalized.original_time }} → 正規化時刻: {{ normalized.normalized_time }})
+
+    または、より簡潔に：
+        放送日：{{ published_at | datetimeformat('%Y年%m月%d日') }}27時
+        ({{ published_at | datetimeformat('%Y年%m月%d日') }} 午前3時) JST
+
+    Args:
+        date_str: 日付文字列 ("YYYY-MM-DD")
+        time_str: 時刻文字列 ("HH:MM")
+
+    Returns:
+        正規化された日本語表示
+    """
+    result = normalize_datetime_with_extended_time(date_str, time_str)
+    if result:
+        return result["display"]
+    return f"{date_str} {time_str}"
+
 
 # ============ テンプレート種別ごとの required_keys 定義 ============
 
@@ -29,6 +416,11 @@ TEMPLATE_REQUIRED_KEYS = {
     "youtube_new_video": ["title", "video_id", "video_url", "channel_name"],
     "youtube_online": ["title", "video_url", "channel_name", "live_status"],
     "youtube_offline": ["title", "channel_name", "live_status"],
+    "youtube_archive": [
+        "title",
+        "video_url",
+        "channel_name",
+    ],  # ★ アーカイブテンプレート追加
     # ニコニコ
     "nico_new_video": ["title", "video_id", "video_url", "channel_name"],
     # Twitch（将来）
@@ -47,38 +439,60 @@ TEMPLATE_ARGS = {
     # YouTube 新着動画
     "youtube_new_video": [
         ("動画タイトル", "title"),
-        ("動画 ID", "video_id"),
         ("動画 URL", "video_url"),
         ("チャンネル名", "channel_name"),
-        ("投稿日時", "published_at"),
-        ("プラットフォーム", "platform"),
+        ("投稿日", "published_at | datetimeformat('%Y年%m月%d日')"),
+        ("投稿日時", "published_at | datetimeformat('%Y年%m月%d日 %H:%M')"),
     ],
     # YouTube 配信開始
     "youtube_online": [
         ("配信タイトル", "title"),
         ("配信 URL", "video_url"),
         ("チャンネル名", "channel_name"),
-        ("配信開始日時", "published_at"),
+        ("配信開始日時(通常)", "published_at | datetimeformat('%Y年%m月%d日 %H:%M')"),
         ("配信ステータス", "live_status"),
     ],
     # YouTube 配信終了
     "youtube_offline": [
-        ("チャンネル名", "channel_name"),
         ("配信タイトル", "title"),
+        ("配信 URL", "video_url"),
+        ("チャンネル名", "channel_name"),
+        ("配信終了日", "published_at | datetimeformat('%Y年%m月%d日')"),
         ("配信ステータス", "live_status"),
+    ],
+    # YouTube スケジュール枠（★ 新規追加）
+    "youtube_schedule": [
+        ("スケジュール枠タイトル", "title"),
+        ("配信 URL", "video_url"),
+        ("チャンネル名", "channel_name"),
+        (
+            "予定配信開始日時(通常)",
+            "published_at | datetimeformat('%Y年%m月%d日 %H:%M')",
+        ),
+        (
+            "予定配信開始日時(拡張)",
+            "format_extended_datetime_range(published_at | datetimeformat('%Y-%m-%d'), 27)",
+        ),
+        ("配信ステータス", "live_status"),
+    ],
+    # YouTube アーカイブ（★ 新規追加）
+    "youtube_archive": [
+        ("アーカイブタイトル", "title"),
+        ("アーカイブ URL", "video_url"),
+        ("チャンネル名", "channel_name"),
+        ("配信日", "published_at | datetimeformat('%Y年%m月%d日')"),
     ],
     # ニコニコ 新着動画
     # ご注意: ユーザー名は自動取得（RSS > 静画API > ユーザーページ > 環境変数 > ユーザーID）
     #        取得されたユーザー名は settings.env に自動保存されます
     "nico_new_video": [
         ("動画タイトル", "title"),
-        ("動画 ID", "video_id"),
         ("動画 URL", "video_url"),
         (
             "投稿者名",
             "channel_name",
         ),  # 自動取得・優先順位: RSS > 静画API > ユーザーページ > 環境変数 > ユーザーID
-        ("投稿日時", "published_at"),
+        ("投稿日時", "published_at | datetimeformat('%Y年%m月%d日')"),
     ],
     # Twitch 配信開始（将来）
     "twitch_online": [
@@ -115,6 +529,7 @@ TEMPLATE_VAR_BLACKLIST = {
         "use_link_card",  # 内部用
         "embed",  # 内部用
         "image_source",  # 内部用
+        "video_id",  # 内部用
     },
     "youtube_online": {
         "is_premiere",
@@ -125,6 +540,8 @@ TEMPLATE_VAR_BLACKLIST = {
         "use_link_card",
         "embed",
         "image_source",
+        "video_id",
+        "live_status",  # ライブ中には不要
     },
     "youtube_offline": {
         "image_mode",
@@ -134,6 +551,30 @@ TEMPLATE_VAR_BLACKLIST = {
         "use_link_card",
         "embed",
         "image_source",
+        "video_id",
+        "live_status",  # オフラインには不要
+    },
+    "youtube_schedule": {  # ★ スケジュール枠テンプレート追加
+        "image_mode",
+        "image_filename",
+        "posted_at",
+        "selected_for_post",
+        "use_link_card",
+        "embed",
+        "image_source",
+        "video_id",
+        "live_status",  # スケジュール枠には不要
+    },
+    "youtube_archive": {  # ★ アーカイブテンプレート追加
+        "image_mode",
+        "image_filename",
+        "posted_at",
+        "selected_for_post",
+        "use_link_card",
+        "embed",
+        "image_source",
+        "live_status",  # アーカイブには不要
+        "video_id",
     },
     "nico_new_video": {
         "image_mode",
@@ -399,10 +840,22 @@ def load_template_with_fallback(
 
         # Jinja2 Environment でテンプレート化
         env = Environment()
+        # ★ Jinja2 ビルトインフィルターを有効化（int, upper, lower など）
+
         # フィルターを登録（format_datetime_filter は別途提供）
         from utils_v3 import format_datetime_filter
 
         env.filters["datetimeformat"] = format_datetime_filter
+
+        # v3.2.0: 動的変数フィルターを登録
+        env.filters["format_date"] = _format_date_filter
+        env.filters["format_datetime"] = _format_datetime_filter
+        env.filters["random_emoji"] = _random_emoji_filter
+        env.filters["weekday"] = _weekday_filter
+
+        # v3.3.0: 拡張時刻フィルターを登録
+        env.filters["extended_time"] = _extended_time_filter
+        env.filters["extended_time_display"] = _extended_time_display_filter
 
         template_obj = env.from_string(template_str)
 
@@ -482,6 +935,13 @@ def render_template(
     """
     Jinja2 テンプレートをレンダリング。
 
+    v3.3.0: 拡張時刻対応
+    - event_context に "scheduled_at" が存在し、かつ "HH:MM" 形式の時刻文字列を含む場合
+    - 自動的に以下の変数が追加される:
+      - scheduled_at_normalized: 正規化された24時間制表記 ("01:00" など)
+      - scheduled_at_display: 日付付き表示 ("翌日1:00時" など)
+      - scheduled_at_is_extended: 24時以降フラグ
+
     Args:
         template_obj: Jinja2 Template オブジェクト
         event_context: 投稿イベント情報
@@ -493,6 +953,23 @@ def render_template(
     ログ出力:
         - 成功時: DEBUG レベル
         - 失敗時: ERROR レベル
+
+    使用例：
+        event_context = {
+            "title": "新作動画",
+            "scheduled_at": "25:30"  # 25時30分（翌日1時30分）
+        }
+        rendered = render_template(template_obj, event_context)
+        # テンプレート内で使用可能:
+        # {{ scheduled_at }}                          → "25:30"
+        # {{ scheduled_at | extended_time }}          → "01:30"
+        # {{ scheduled_at | extended_time_display }}  → "翌日1:30時"
+        # {{ scheduled_at_normalized }}               → "01:30"
+        # {{ scheduled_at_display }}                  → "翌日1:30時"
+        # {{ scheduled_at_is_extended }}              → true
+        #
+        # ⚠️ 重要: 日付を超える場合は翌日になります
+        # 例: 2025-12-21 27:00 → 2025年12月22日午前3時00分（22日！）
     """
     if not template_obj:
         logger.error(
@@ -501,7 +978,111 @@ def render_template(
         return None
 
     try:
-        rendered_text = template_obj.render(**event_context)
+        # ★ v3.3.0: 拡張時刻の自動処理
+        context = dict(event_context)  # 元のevent_contextを保護
+
+        if "scheduled_at" in context and isinstance(context["scheduled_at"], str):
+            scheduled_at_str = context["scheduled_at"].strip()
+
+            # "HH:MM" または "HH:MM:SS" 形式のパース試行
+            time_parts = scheduled_at_str.split(":")
+            if len(time_parts) >= 2:
+                try:
+                    # 拡張時刻をパース
+                    time_info = parse_extended_time(f"{time_parts[0]}:{time_parts[1]}")
+                    if time_info:
+                        # event_context に拡張時刻変数を追加
+                        context["scheduled_at_normalized"] = time_info["normalized_24h"]
+                        context["scheduled_at_display"] = time_info["display_with_date"]
+                        context["scheduled_at_is_extended"] = time_info["is_extended"]
+
+                        if time_info["is_extended"]:
+                            logger.debug(
+                                f"✅ 拡張時刻を正規化: {scheduled_at_str} → {time_info['normalized_24h']} ({time_info['display_with_date']})"
+                            )
+
+                except Exception as e:
+                    logger.debug(f"⚠️ 拡張時刻の処理スキップ: {e}")
+
+        # ★ v3.3.0: テンプレート内で使用可能なカスタム関数を注入
+        context["normalize_extended_datetime"] = normalize_datetime_with_extended_time
+
+        # ★ 日付と拡張時刻の合成表示用ヘルパー関数
+        def format_extended_datetime_range(
+            base_date_str: str, extended_hour_or_time: Any
+        ) -> str:
+            """
+            基準日付と拡張時刻から、日付と時刻の両方を正規化して併記
+
+            使用例:
+                {{ format_extended_datetime_range(published_at | datetimeformat('%Y-%m-%d'), 27) }}
+                → "2025年12月21日27時(2025年12月22日(月)午前3時)"
+
+                {{ format_extended_datetime_range(scheduled_start_date, scheduled_start_time_hhmm) }}
+                → "2025年12月29日27:00(2025年12月30日(木)午前3時)"
+            """
+            try:
+                # extended_hour_or_time が文字列の場合（"27:00"）と整数の場合（27）に対応
+                if isinstance(extended_hour_or_time, str):
+                    # "27:00" 形式の場合
+                    time_parts = extended_hour_or_time.split(":")
+                    extended_hour = int(time_parts[0]) if time_parts else 0
+                else:
+                    # 整数の場合（27）
+                    extended_hour = int(extended_hour_or_time)
+
+                logger.debug(
+                    f"🔍 format_extended_datetime_range: base_date_str={base_date_str}, extended_hour={extended_hour}"
+                )
+
+                # 時刻情報から正規化
+                time_info = parse_extended_time(f"{extended_hour}:00")
+                if not time_info:
+                    result = f"{base_date_str}{extended_hour}時"
+                    logger.warning(f"⚠️ time_info パース失敗: {result}")
+                    return result
+
+                # base_date_str を datetime.date に変換（フォーマット: YYYY-MM-DD）
+                from datetime import datetime as dt
+
+                base_date = dt.strptime(base_date_str, "%Y-%m-%d").date()
+
+                # 日付をオフセット
+                from datetime import timedelta
+
+                normalized_date = base_date + timedelta(days=time_info["day_offset"])
+
+                # 日本語表示
+                weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
+                weekday = weekdays_jp[normalized_date.weekday()]
+                period = "午前" if time_info["hours_24h"] < 12 else "午後"
+                hour_12h = (
+                    time_info["hours_24h"]
+                    if time_info["hours_24h"] <= 12
+                    else time_info["hours_24h"] - 12
+                )
+                if hour_12h == 0:
+                    hour_12h = 12
+
+                # 元の日付も日本語に変換
+                base_date_jp = f"{base_date.year}年{base_date.month}月{base_date.day}日"
+                result = f"{base_date_jp}{extended_hour}時({normalized_date.year}年{normalized_date.month}月{normalized_date.day}日({weekday}){period}{hour_12h}時)"
+                logger.debug(f"✅ format_extended_datetime_range 成功: {result}")
+                return result
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ 拡張日時フォーマットエラー: {e} (base_date_str={base_date_str}, extended_hour_or_time={extended_hour_or_time})"
+                )
+                return f"{base_date_str}{extended_hour_or_time}時"
+
+        context["format_extended_datetime_range"] = format_extended_datetime_range
+
+        # ★ Jinja2 ビルトインフィルターをコンテキストに追加
+        context["int"] = int  # int フィルター用
+        context["str"] = str  # str フィルター用
+        context["float"] = float  # float フィルター用
+
+        rendered_text = template_obj.render(**context)
         logger.debug(f"✅ テンプレートレンダリング成功（種別: {template_type}）")
         return rendered_text
 
@@ -731,7 +1312,7 @@ def save_template_file(
 
 if __name__ == "__main__":
     # ユーティリティのテスト実行
-    print("Template Utils - v3.1.0")
+    print("Template Utils - v3.3.0")
     print("=" * 50)
 
     # テスト: サンプル context を表示
@@ -742,6 +1323,33 @@ if __name__ == "__main__":
 
         args = get_template_args_for_dialog(template_type)
         print(f"  Display args: {len(args)} 項目")
+
+    # テスト: 拡張時刻パース
+    print("\n" + "=" * 50)
+    print("✅ 拡張時刻パーステスト")
+    print("=" * 50)
+
+    test_times = ["25:00", "25:30", "27:15", "30:00", "14:30", "00:00"]
+    for time_str in test_times:
+        result = parse_extended_time(time_str)
+        if result:
+            print(f"\n入力: {time_str}")
+            print(f"  正規化時刻: {result['normalized_24h']}")
+            print(f"  表示: {result['display_with_date']}")
+            print(f"  24時以降: {result['is_extended']}")
+
+    # テスト: 日時正規化
+    print("\n" + "=" * 50)
+    print("✅ 日時正規化テスト")
+    print("=" * 50)
+
+    result = normalize_datetime_with_extended_time("2025-12-21", "25:30")
+    if result:
+        print(f"\n入力: 2025-12-21 25:30")
+        print(f"  正規化日付: {result['normalized_date']}")
+        print(f"  正規化時刻: {result['normalized_time']}")
+        print(f"  日本語表示: {result['display']}")
+        print(f"  日付オフセット: {result['day_offset']}日")
 
     print("\n" + "=" * 50)
     print("✅ template_utils.py の基本動作確認完了")

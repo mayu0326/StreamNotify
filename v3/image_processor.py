@@ -10,6 +10,10 @@ from pathlib import Path
 from PIL import Image
 import io
 
+__author__ = "mayuneco(mayunya)"
+__copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
+__license__ = "GPLv2"
+
 # ログ設定
 # モジュール独立実行時は __main__、bluesky_plugin から呼び出されときは PostLogger を使用
 logger = logging.getLogger(__name__)
