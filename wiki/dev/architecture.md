@@ -149,4 +149,4 @@ v3/
 （バッチ処理の最適化、ポーラーの動作、データベースキャッシュの詳細など）については、  
 以下のインデックスページから各仕様書を参照してください。
 
-- **[開発者向け詳細技術仕様書 (docs/technical/index.md)](./docs/technical/index.md)**
+- **[開発者向け詳細技術仕様書](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/dev/technical_specs.md)**
