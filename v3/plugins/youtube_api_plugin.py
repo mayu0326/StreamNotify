@@ -13,6 +13,7 @@ YouTube Data API プラグイン（クォータ対応版）
 - search.list（ハンドル検索）: 100ユニット
 - videos.list（詳細取得）: 1ユニット（最大50件/リクエスト）
 """
+
 import os
 import logging
 import time
@@ -47,15 +48,18 @@ class YouTubeAPIPlugin(NotificationPlugin):
         return cls._instance
 
     def __init__(self):
-        if hasattr(self, '_initialized') and self._initialized:
+        if hasattr(self, "_initialized") and self._initialized:
             return
 
         # 設定から読み込み（環境変数の前に config から読み込みを試みる）
         try:
             from config import get_config
+
             config = get_config("settings.env")
             self.api_key = config.youtube_api_key or os.getenv("YOUTUBE_API_KEY", "")
-            self.channel_identifier = config.youtube_channel_id or os.getenv("YOUTUBE_CHANNEL_ID", "")
+            self.channel_identifier = config.youtube_channel_id or os.getenv(
+                "YOUTUBE_CHANNEL_ID", ""
+            )
         except Exception:
             # フォールバック: 環境変数から直接読み込み
             self.api_key = os.getenv("YOUTUBE_API_KEY", "")
@@ -88,11 +92,17 @@ class YouTubeAPIPlugin(NotificationPlugin):
             if self.channel_id:
                 # UC形式またはAPIで解決済み
                 if self.channel_identifier.startswith("UC"):
-                    logger.info(f"✅ YouTube API: UC形式IDのためAPIアクセスは不要です: {self.channel_id}")
+                    logger.info(
+                        f"✅ YouTube API: UC形式IDのためAPIアクセスは不要です: {self.channel_id}"
+                    )
                 else:
-                    logger.info(f"✅ YouTube API: チャンネルIDを解決しました: {self.channel_id}")
+                    logger.info(
+                        f"✅ YouTube API: チャンネルIDを解決しました: {self.channel_id}"
+                    )
             else:
-                logger.warning("⚠️ YouTube API: チャンネルIDの解決に失敗しました。UC形式のID、または有効な API キーを確認してください.")
+                logger.warning(
+                    "⚠️ YouTube API: チャンネルIDの解決に失敗しました。UC形式のID、または有効な API キーを確認してください."
+                )
         self._initialized = True
 
     def is_available(self) -> bool:
@@ -116,7 +126,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
 
         # YouTube ID 形式の検証（Niconico など他形式のスキップ）
         if not self._is_valid_youtube_video_id(video_id):
-            logger.debug(f"⏭️ YouTube API: YouTube 形式ではない video_id をスキップ: {video_id}")
+            logger.debug(
+                f"⏭️ YouTube API: YouTube 形式ではない video_id をスキップ: {video_id}"
+            )
             return True  # エラーではなく「対応不可」として True を返す
 
         details = self._fetch_video_detail(video_id)
@@ -130,7 +142,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
         title = video.get("title") or snippet.get("title", "【新着動画】")
         channel_name = video.get("channel_name") or snippet.get("channelTitle", "")
         published_at = video.get("published_at") or snippet.get("publishedAt", "")
-        video_url = video.get("video_url") or f"https://www.youtube.com/watch?v={video_id}"
+        video_url = (
+            video.get("video_url") or f"https://www.youtube.com/watch?v={video_id}"
+        )
 
         # サムネイル URL を取得（複数品質から最適なものを選択）
         thumbnail_url = get_youtube_thumbnail_url(video_id)
@@ -161,7 +175,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
                     identifier_key = f"channel_identifier:{self.channel_identifier}"
                     if identifier_key in cache:
                         self.channel_id = cache[identifier_key]
-                        logger.info(f"📦 チャンネルIDをキャッシュから読み込みました: {self.channel_id}")
+                        logger.info(
+                            f"📦 チャンネルIDをキャッシュから読み込みました: {self.channel_id}"
+                        )
         except Exception as e:
             logger.warning(f"⚠️ チャンネルキャッシュ読み込みエラー: {e}")
 
@@ -199,7 +215,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
                         self.video_detail_cache[video_id] = entry.get("data", {})
                         self.cache_timestamps[video_id] = entry.get("timestamp", 0)
 
-                logger.info(f"📦 ビデオ詳細キャッシュを読み込みました: {len(self.video_detail_cache)} 件")
+                logger.info(
+                    f"📦 ビデオ詳細キャッシュを読み込みました: {len(self.video_detail_cache)} 件"
+                )
         except Exception as e:
             logger.warning(f"⚠️ ビデオ詳細キャッシュ読み込みエラー: {e}")
 
@@ -213,7 +231,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
             for video_id, details in self.video_detail_cache.items():
                 cache_data[video_id] = {
                     "data": details,
-                    "timestamp": self.cache_timestamps.get(video_id, time.time())
+                    "timestamp": self.cache_timestamps.get(video_id, time.time()),
                 }
 
             with open(cache_path, "w", encoding="utf-8") as f:
@@ -273,21 +291,34 @@ class YouTubeAPIPlugin(NotificationPlugin):
     def _check_quota(self, cost: int) -> bool:
         """コスト超過を事前チェック"""
         if self.daily_cost + cost > self.daily_quota:
-            logger.error(f"❌ 日次クォータ超過予測: 現在 {self.daily_cost}/{self.daily_quota} ユニット使用済み。"
-                         f"追加 {cost} ユニット必要ですが、超過します")
+            logger.error(
+                f"❌ 日次クォータ超過予測: 現在 {self.daily_cost}/{self.daily_quota} ユニット使用済み。"
+                f"追加 {cost} ユニット必要ですが、超過します"
+            )
             return False
         return True
 
     def _record_cost(self, cost: int, operation: str) -> None:
         """APIコストを記録・ログ出力"""
         self.daily_cost += cost
-        logger.info(f"💰 API コスト: {operation} = {cost}ユニット (累計: {self.daily_cost}/{self.daily_quota})")
+        logger.info(
+            f"💰 API コスト: {operation} = {cost}ユニット (累計: {self.daily_cost}/{self.daily_quota})"
+        )
 
         if self.daily_cost >= self.daily_quota * 0.8:
-            logger.warning(f"⚠️ 日次クォータが 80% に到達しました。使用済み: {self.daily_cost}/{self.daily_quota}")
+            logger.warning(
+                f"⚠️ 日次クォータが 80% に到達しました。使用済み: {self.daily_cost}/{self.daily_quota}"
+            )
 
     # --- API通信（エラーハンドリング・バックオフ付き） ---
-    def _get(self, path: str, params: Dict[str, Any], expected_cost: int, operation: str, max_retries: int = 3) -> Optional[Dict[str, Any]]:
+    def _get(
+        self,
+        path: str,
+        params: Dict[str, Any],
+        expected_cost: int,
+        operation: str,
+        max_retries: int = 3,
+    ) -> Optional[Dict[str, Any]]:
         """
         API呼び出し（エクスポーネンシャルバックオフ対応）
 
@@ -311,13 +342,17 @@ class YouTubeAPIPlugin(NotificationPlugin):
             try:
                 self._throttle_request()
 
-                logger.debug(f"🔌 API リクエスト開始: {operation} (試行 {attempt + 1}/{max_retries})")
+                logger.debug(
+                    f"🔌 API リクエスト開始: {operation} (試行 {attempt + 1}/{max_retries})"
+                )
                 resp = self.session.get(url, params=params_with_key, timeout=15)
 
                 # 429: Over Quota または Rate Limit
                 if resp.status_code == 429:
                     retry_after = int(resp.headers.get("Retry-After", 60))
-                    logger.warning(f"⏸️ 429 Rate Limit 受信: {retry_after}秒待機後リトライ")
+                    logger.warning(
+                        f"⏸️ 429 Rate Limit 受信: {retry_after}秒待機後リトライ"
+                    )
 
                     if attempt < max_retries - 1:
                         time.sleep(retry_after)
@@ -332,9 +367,11 @@ class YouTubeAPIPlugin(NotificationPlugin):
                 return resp.json()
 
             except requests.exceptions.Timeout:
-                logger.warning(f"⏱️ タイムアウト: {operation} (試行 {attempt + 1}/{max_retries})")
+                logger.warning(
+                    f"⏱️ タイムアウト: {operation} (試行 {attempt + 1}/{max_retries})"
+                )
                 if attempt < max_retries - 1:
-                    backoff = 2 ** attempt  # 1, 2, 4秒
+                    backoff = 2**attempt  # 1, 2, 4秒
                     logger.info(f"⏳ {backoff}秒待機後リトライ...")
                     time.sleep(backoff)
                 else:
@@ -344,7 +381,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
             except requests.exceptions.RequestException as e:
                 logger.error(f"❌ API エラー ({operation}): {e}")
                 if attempt < max_retries - 1:
-                    backoff = 2 ** attempt
+                    backoff = 2**attempt
                     logger.info(f"⏳ {backoff}秒待機後リトライ...")
                     time.sleep(backoff)
                 else:
@@ -374,7 +411,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
             "channels",
             {"part": "id", "forUsername": identifier},
             expected_cost=1,
-            operation=f"forUsername: {identifier}"
+            operation=f"forUsername: {identifier}",
         )
         if data:
             items = data.get("items", [])
@@ -386,7 +423,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
                     return channel_id
 
         # forUsername で見つからない場合はエラー（search.list は使用しない）
-        logger.error(f"❌ チャンネルID解決失敗: {identifier}（チャンネルIDが正しくありません）")
+        logger.error(
+            f"❌ チャンネルID解決失敗: {identifier}（チャンネルIDが正しくありません）"
+        )
         return None
 
     # --- 動画詳細取得 ---
@@ -406,7 +445,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
                 "maxResults": 1,
             },
             expected_cost=1,
-            operation=f"video detail: {video_id}"
+            operation=f"video detail: {video_id}",
         )
         items = data.get("items", []) if data else []
         if items:
@@ -417,7 +456,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
 
         return None
 
-    def fetch_video_details_batch(self, video_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    def fetch_video_details_batch(
+        self, video_ids: List[str]
+    ) -> Dict[str, Dict[str, Any]]:
         """
         最大50件の動画詳細をバッチ取得（キャッシュ優先、1ユニット）
 
@@ -449,7 +490,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
 
         # 50件ずつ分割してAPI取得
         for i in range(0, len(to_fetch), 50):
-            batch = to_fetch[i:i+50]
+            batch = to_fetch[i : i + 50]
             batch_str = ",".join(batch)
 
             data = self._get(
@@ -460,7 +501,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
                     "maxResults": 50,
                 },
                 expected_cost=1,
-                operation=f"batch video details: {len(batch)} 件"
+                operation=f"batch video details: {len(batch)} 件",
             )
 
             if data:
@@ -490,14 +531,17 @@ class YouTubeAPIPlugin(NotificationPlugin):
             True: YouTube 形式, False: 他の形式（Niconico など）
         """
         import re
+
         # YouTube 動画ID: 11 文字、A-Za-z0-9-_
-        if re.match(r'^[A-Za-z0-9_-]{11}$', video_id):
+        if re.match(r"^[A-Za-z0-9_-]{11}$", video_id):
             return True
         return False
 
     # --- 分類ロジック（コア・共通部分） ---
     @staticmethod
-    def _classify_video_core(details: Dict[str, Any]) -> Tuple[str, Optional[str], bool]:
+    def _classify_video_core(
+        details: Dict[str, Any],
+    ) -> Tuple[str, Optional[str], bool]:
         """
         ★ System コメント 1-7 分類仕様 ★
 
@@ -554,7 +598,10 @@ class YouTubeAPIPlugin(NotificationPlugin):
         # System 3: プレミア公開判定
         is_premiere = False
         if live:
-            if status.get("uploadStatus") == "processed" and broadcast_type in ("live", "upcoming"):
+            if status.get("uploadStatus") == "processed" and broadcast_type in (
+                "live",
+                "upcoming",
+            ):
                 is_premiere = True
 
             # ★ 重要: broadcast_type が "none" でも liveStreamingDetails がある場合
@@ -582,7 +629,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
         # System 5: デフォルト → 通常動画
         return "video", None, False
 
-    def _classify_video(self, details: Dict[str, Any]) -> Tuple[str, Optional[str], bool]:
+    def _classify_video(
+        self, details: Dict[str, Any]
+    ) -> Tuple[str, Optional[str], bool]:
         """
         動画の種別と状態を判別（content_type, live_status, is_premiere）
 
@@ -600,7 +649,9 @@ class YouTubeAPIPlugin(NotificationPlugin):
     def on_disable(self) -> None:
         """プラグイン無効化時"""
         logger.info(f"⛔ プラグイン無効化: {self.get_name()}")
-        logger.info(f"   本日の API コスト: {self.daily_cost}/{self.daily_quota} ユニット")
+        logger.info(
+            f"   本日の API コスト: {self.daily_cost}/{self.daily_quota} ユニット"
+        )
         # 終了時にキャッシュを保存
         self._save_video_detail_cache()
 

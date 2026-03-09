@@ -14,7 +14,7 @@ import os
 import logging
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
-from jinja2 import Environment, TemplateNotFound, TemplateSyntaxError
+from jinja2 import Environment, TemplateSyntaxError
 
 logger = logging.getLogger("AppLogger")
 
@@ -29,14 +29,16 @@ TEMPLATE_REQUIRED_KEYS = {
     "youtube_new_video": ["title", "video_id", "video_url", "channel_name"],
     "youtube_online": ["title", "video_url", "channel_name", "live_status"],
     "youtube_offline": ["title", "channel_name", "live_status"],
-
     # ニコニコ
-    "nico_new_video": ["title", "video_id", "video_url", "channel_name", "published_at"],
-
+    "nico_new_video": ["title", "video_id", "video_url", "channel_name"],
     # Twitch（将来）
     "twitch_online": ["title", "stream_url", "broadcaster_user_name", "game_name"],
     "twitch_offline": ["broadcaster_user_name", "channel_url"],
-    "twitch_raid": ["from_broadcaster_user_name", "to_broadcaster_user_name", "raid_url"],
+    "twitch_raid": [
+        "from_broadcaster_user_name",
+        "to_broadcaster_user_name",
+        "raid_url",
+    ],
 }
 
 # ============ テンプレート種別ごとの表示可能変数（ボタン挿入用） ============
@@ -51,7 +53,6 @@ TEMPLATE_ARGS = {
         ("投稿日時", "published_at"),
         ("プラットフォーム", "platform"),
     ],
-
     # YouTube 配信開始
     "youtube_online": [
         ("配信タイトル", "title"),
@@ -60,14 +61,12 @@ TEMPLATE_ARGS = {
         ("配信開始日時", "published_at"),
         ("配信ステータス", "live_status"),
     ],
-
     # YouTube 配信終了
     "youtube_offline": [
         ("チャンネル名", "channel_name"),
         ("配信タイトル", "title"),
         ("配信ステータス", "live_status"),
     ],
-
     # ニコニコ 新着動画
     # ご注意: ユーザー名は自動取得（RSS > 静画API > ユーザーページ > 環境変数 > ユーザーID）
     #        取得されたユーザー名は settings.env に自動保存されます
@@ -75,10 +74,12 @@ TEMPLATE_ARGS = {
         ("動画タイトル", "title"),
         ("動画 ID", "video_id"),
         ("動画 URL", "video_url"),
-        ("投稿者名", "channel_name"),  # 自動取得・優先順位: RSS > 静画API > ユーザーページ > 環境変数 > ユーザーID
+        (
+            "投稿者名",
+            "channel_name",
+        ),  # 自動取得・優先順位: RSS > 静画API > ユーザーページ > 環境変数 > ユーザーID
         ("投稿日時", "published_at"),
     ],
-
     # Twitch 配信開始（将来）
     "twitch_online": [
         ("配信タイトル", "title"),
@@ -88,14 +89,12 @@ TEMPLATE_ARGS = {
         ("配信 URL", "stream_url"),
         ("配信開始日時", "started_at"),
     ],
-
     # Twitch 配信終了（将来）
     "twitch_offline": [
         ("配信者表示名", "broadcaster_user_name"),
         ("チャンネル URL", "channel_url"),
         ("配信終了日時", "ended_at"),
     ],
-
     # Twitch Raid（将来）
     "twitch_raid": [
         ("Raid 元：配信者表示名", "from_broadcaster_user_name"),
@@ -108,16 +107,15 @@ TEMPLATE_ARGS = {
 
 TEMPLATE_VAR_BLACKLIST = {
     "youtube_new_video": {
-        "is_premiere",           # プレミア判定フラグ
-        "image_mode",            # 画像モード
-        "image_filename",        # キャッシュ済み画像ファイル名
-        "posted_at",             # DB 用
-        "selected_for_post",     # DB 用
-        "use_link_card",         # 内部用
-        "embed",                 # 内部用
-        "image_source",          # 内部用
+        "is_premiere",  # プレミア判定フラグ
+        "image_mode",  # 画像モード
+        "image_filename",  # キャッシュ済み画像ファイル名
+        "posted_at",  # DB 用
+        "selected_for_post",  # DB 用
+        "use_link_card",  # 内部用
+        "embed",  # 内部用
+        "image_source",  # 内部用
     },
-
     "youtube_online": {
         "is_premiere",
         "image_mode",
@@ -128,7 +126,6 @@ TEMPLATE_VAR_BLACKLIST = {
         "embed",
         "image_source",
     },
-
     "youtube_offline": {
         "image_mode",
         "image_filename",
@@ -138,7 +135,6 @@ TEMPLATE_VAR_BLACKLIST = {
         "embed",
         "image_source",
     },
-
     "nico_new_video": {
         "image_mode",
         "image_filename",
@@ -148,7 +144,6 @@ TEMPLATE_VAR_BLACKLIST = {
         "embed",
         "image_source",
     },
-
     # Twitch（将来）
     "twitch_online": {
         "image_mode",
@@ -156,12 +151,10 @@ TEMPLATE_VAR_BLACKLIST = {
         "use_link_card",
         "embed",
     },
-
     "twitch_offline": {
         "use_link_card",
         "embed",
     },
-
     "twitch_raid": {
         "use_link_card",
         "embed",
@@ -197,13 +190,13 @@ def _get_env_var_from_file(file_path: str, env_var_name: str) -> Optional[str]:
         if not file_path_obj.exists():
             return None
 
-        with open(file_path_obj, 'r', encoding='utf-8') as f:
+        with open(file_path_obj, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
-                if '=' in line:
-                    key, value = line.split('=', 1)
+                if "=" in line:
+                    key, value = line.split("=", 1)
                     if key.strip() == env_var_name:
                         return value.strip()
     except Exception as e:
@@ -244,9 +237,7 @@ def _get_legacy_env_var_name(template_type: str) -> str:
 
 
 def get_template_path(
-    template_type: str,
-    env_var_name: str = None,
-    default_fallback: str = None
+    template_type: str, env_var_name: str = None, default_fallback: str = None
 ) -> Optional[str]:
     """
     環境変数からテンプレートパスを取得、なければデフォルトを返す。
@@ -285,7 +276,9 @@ def get_template_path(
     if not env_path:
         env_path = _get_env_var_from_file("settings.env", new_format_env_var)
         if env_path:
-            logger.debug(f"✅ settings.env から読み込み: {new_format_env_var} = {env_path}")
+            logger.debug(
+                f"✅ settings.env から読み込み: {new_format_env_var} = {env_path}"
+            )
 
     if env_path:
         return env_path
@@ -301,7 +294,9 @@ def get_template_path(
     if not env_path:
         env_path = _get_env_var_from_file("settings.env", legacy_format_env_var)
         if env_path:
-            logger.debug(f"✅ settings.env から読み込み（レガシー形式）: {legacy_format_env_var} = {env_path}")
+            logger.debug(
+                f"✅ settings.env から読み込み（レガシー形式）: {legacy_format_env_var} = {env_path}"
+            )
 
     if env_path:
         return env_path
@@ -335,9 +330,7 @@ def get_template_path(
 
 
 def load_template_with_fallback(
-    path: str,
-    default_path: str = None,
-    template_type: str = "unknown"
+    path: str, default_path: str = None, template_type: str = "unknown"
 ) -> Optional[Any]:
     """
     テンプレートファイルを読み込み、失敗時はデフォルトにフォールバック。
@@ -356,14 +349,18 @@ def load_template_with_fallback(
         - エラー: ERROR レベル
     """
     if not path:
-        logger.warning(f"⚠️ テンプレートパスが指定されていません（種別: {template_type}）")
+        logger.warning(
+            f"⚠️ テンプレートパスが指定されていません（種別: {template_type}）"
+        )
         path = default_path or str(DEFAULT_TEMPLATE_PATH)
 
     try:
         # ★ 相対パス → 絶対パス変換（TEMPLATE_ROOT 基準）
         template_path = Path(path)
         logger.debug(f"🔍 初期パス: {path}, is_absolute={template_path.is_absolute()}")
-        logger.debug(f"   TEMPLATE_ROOT={TEMPLATE_ROOT}, TEMPLATE_ROOT.parent={TEMPLATE_ROOT.parent}")
+        logger.debug(
+            f"   TEMPLATE_ROOT={TEMPLATE_ROOT}, TEMPLATE_ROOT.parent={TEMPLATE_ROOT.parent}"
+        )
 
         if not template_path.is_absolute():
             # 相対パスの場合は TEMPLATE_ROOT を基準に解決
@@ -377,14 +374,20 @@ def load_template_with_fallback(
         if not template_path.exists():
             logger.warning(f"⚠️ テンプレートファイルが見つかりません: {template_path}")
             if default_path:
-                logger.info(f"🔄 デフォルトテンプレートにフォールバック: {default_path}")
+                logger.info(
+                    f"🔄 デフォルトテンプレートにフォールバック: {default_path}"
+                )
                 path = default_path
                 # フォールバック時も相対パス → 絶対パス変換を試みる
                 template_path = Path(path)
                 if not template_path.is_absolute():
                     template_path = TEMPLATE_ROOT.parent / path
-                    logger.debug(f"🔍 フォールバック時に相対パスを絶対パスに変換: {path} → {template_path}")
-                logger.debug(f"🔍 フォールバック先ファイル存在確認: {template_path} (exists={template_path.exists()})")
+                    logger.debug(
+                        f"🔍 フォールバック時に相対パスを絶対パスに変換: {path} → {template_path}"
+                    )
+                logger.debug(
+                    f"🔍 フォールバック先ファイル存在確認: {template_path} (exists={template_path.exists()})"
+                )
             else:
                 logger.warning(f"❌ フォールバックパスも指定されていません")
                 return None
@@ -398,6 +401,7 @@ def load_template_with_fallback(
         env = Environment()
         # フィルターを登録（format_datetime_filter は別途提供）
         from utils_v3 import format_datetime_filter
+
         env.filters["datetimeformat"] = format_datetime_filter
 
         template_obj = env.from_string(template_str)
@@ -406,14 +410,14 @@ def load_template_with_fallback(
         return template_obj
 
     except FileNotFoundError as e:
-        logger.error(f"❌ テンプレートファイル読み込みエラー: {template_path} (path={path})")
+        logger.error(
+            f"❌ テンプレートファイル読み込みエラー: {template_path} (path={path})"
+        )
         logger.error(f"   詳細: ファイルが見つかりません - {e}")
         if default_path and path != default_path:
             logger.info(f"🔄 デフォルトテンプレートにフォールバック: {default_path}")
             return load_template_with_fallback(
-                default_path,
-                default_path=None,
-                template_type=template_type
+                default_path, default_path=None, template_type=template_type
             )
         return None
 
@@ -423,16 +427,17 @@ def load_template_with_fallback(
 
     except Exception as e:
         import traceback
-        logger.error(f"❌ テンプレート読み込み予期しないエラー: {type(e).__name__}: {e}")
+
+        logger.error(
+            f"❌ テンプレート読み込み予期しないエラー: {type(e).__name__}: {e}"
+        )
         logger.error(f"   パス: {template_path}")
         logger.error(f"   トレースバック: {traceback.format_exc()}")
         return None
 
 
 def validate_required_keys(
-    event_context: dict,
-    required_keys: List[str],
-    event_type: str = "unknown"
+    event_context: dict, required_keys: List[str], event_type: str = "unknown"
 ) -> Tuple[bool, Optional[List[str]]]:
     """
     event_context に必須キーが存在するか検証。
@@ -455,10 +460,16 @@ def validate_required_keys(
         logger.debug(f"✅ 必須キーなし（種別: {event_type}）")
         return True, None
 
-    missing_keys = [key for key in required_keys if key not in event_context or event_context[key] is None]
+    missing_keys = [
+        key
+        for key in required_keys
+        if key not in event_context or event_context[key] is None
+    ]
 
     if not missing_keys:
-        logger.debug(f"✅ 必須キー検証成功（種別: {event_type}、キー数: {len(required_keys)}）")
+        logger.debug(
+            f"✅ 必須キー検証成功（種別: {event_type}、キー数: {len(required_keys)}）"
+        )
         return True, None
     else:
         logger.warning(f"⚠️ 必須キー不足（種別: {event_type}）: {missing_keys}")
@@ -466,9 +477,7 @@ def validate_required_keys(
 
 
 def render_template(
-    template_obj: Any,
-    event_context: dict,
-    template_type: str = "unknown"
+    template_obj: Any, event_context: dict, template_type: str = "unknown"
 ) -> Optional[str]:
     """
     Jinja2 テンプレートをレンダリング。
@@ -486,7 +495,9 @@ def render_template(
         - 失敗時: ERROR レベル
     """
     if not template_obj:
-        logger.error(f"❌ テンプレートオブジェクトが None です（種別: {template_type}）")
+        logger.error(
+            f"❌ テンプレートオブジェクトが None です（種別: {template_type}）"
+        )
         return None
 
     try:
@@ -500,8 +511,7 @@ def render_template(
 
 
 def get_template_args_for_dialog(
-    template_type: str,
-    blacklist: bool = True
+    template_type: str, blacklist: bool = True
 ) -> List[Tuple[str, str]]:
     """
     テンプレート編集ダイアログ用に、表示可能な変数リストを取得。
@@ -527,9 +537,7 @@ def get_template_args_for_dialog(
     return args
 
 
-def get_sample_context(
-    template_type: str
-) -> Dict[str, Any]:
+def get_sample_context(template_type: str) -> Dict[str, Any]:
     """
     テンプレート編集ダイアログのプレビュー用サンプル event_context を取得。
 
@@ -552,7 +560,6 @@ def get_sample_context(
             "content_type": "video",
             "live_status": None,
         },
-
         "youtube_online": {
             "title": "今夜は雑談配信！",
             "video_url": "https://www.youtube.com/watch?v=example",
@@ -563,7 +570,6 @@ def get_sample_context(
             "content_type": "live",
             "live_status": "live",
         },
-
         "youtube_offline": {
             "title": "今夜は雑談配信！",
             "channel_name": "〇〇チャンネル",
@@ -572,7 +578,6 @@ def get_sample_context(
             "content_type": "live",
             "live_status": "completed",
         },
-
         "nico_new_video": {
             "title": "【ゆっくり解説】最新ゲーム",
             "video_id": "sm12345678",
@@ -584,7 +589,6 @@ def get_sample_context(
             "content_type": "video",
             "live_status": None,
         },
-
         "nico_online": {
             "title": "ニコ生配信中",
             "video_url": "https://live.nicovideo.jp/watch/lv1234567",
@@ -594,7 +598,6 @@ def get_sample_context(
             "content_type": "live",
             "live_status": "live",
         },
-
         "nico_offline": {
             "channel_name": "投稿者名",
             "title": "ニコ生配信中",
@@ -603,7 +606,6 @@ def get_sample_context(
             "content_type": "live",
             "live_status": "completed",
         },
-
         # Twitch（将来）
         "twitch_online": {
             "title": "ゲーム配信開始！",
@@ -617,7 +619,6 @@ def get_sample_context(
             "content_type": "live",
             "live_status": "live",
         },
-
         "twitch_offline": {
             "broadcaster_user_name": "配信者名",
             "channel_url": "https://twitch.tv/example_user",
@@ -639,7 +640,7 @@ def get_sample_context(
             "source": "unknown",
             "content_type": "video",
             "live_status": None,
-        }
+        },
     )
 
 
@@ -647,9 +648,7 @@ def get_sample_context(
 
 
 def preview_template(
-    template_type: str,
-    template_text: str,
-    event_context: Dict[str, Any] = None
+    template_type: str, template_text: str, event_context: Dict[str, Any] = None
 ) -> Tuple[bool, str]:
     """
     ユーザーがテンプレート編集ダイアログで入力したテンプレートをプレビュー。
@@ -668,6 +667,7 @@ def preview_template(
     try:
         env = Environment()
         from utils_v3 import format_datetime_filter
+
         env.filters["datetimeformat"] = format_datetime_filter
 
         template_obj = env.from_string(template_text)
@@ -691,9 +691,7 @@ def preview_template(
 
 
 def save_template_file(
-    template_type: str,
-    template_text: str,
-    output_path: str = None
+    template_type: str, template_text: str, output_path: str = None
 ) -> Tuple[bool, str]:
     """
     ユーザーが編集したテンプレートをファイルに保存。

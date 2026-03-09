@@ -23,7 +23,9 @@ print("=" * 60)
 cursor.execute("PRAGMA table_info(videos)")
 columns = cursor.fetchall()
 for col_id, col_name, col_type, notnull, default_value, pk in columns:
-    print(f"  {col_id:2d}: {col_name:30s} {col_type:10s} {'NOT NULL' if notnull else ''}")
+    print(
+        f"  {col_id:2d}: {col_name:30s} {col_type:10s} {'NOT NULL' if notnull else ''}"
+    )
 
 print()
 print("=" * 60)
@@ -55,7 +57,9 @@ cursor.execute("""
 
 for row in cursor.fetchall():
     video_id, source, ctype, bstatus, title = row
-    print(f"  {video_id} | {source:10s} | {ctype or 'video':7s} | {bstatus or '-':10s} | {title}")
+    print(
+        f"  {video_id} | {source:10s} | {ctype or 'video':7s} | {bstatus or '-':10s} | {title}"
+    )
 
 conn.close()
 print()

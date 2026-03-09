@@ -13,11 +13,11 @@ import sys
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 
 # 親ディレクトリのplugin_interfaceをインポート
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from plugin_interface import NotificationPlugin
 
 __author__ = "mayuneco(mayunya)"
@@ -35,9 +35,11 @@ class FlushTimedRotatingFileHandler(TimedRotatingFileHandler):
         """ファイルを開く際に改行コードをLFに統一"""
         # newline='' で自動的なCRLF変換を防ぐ
         if self.encoding is None:
-            stream = open(self.baseFilename, self.mode, newline='')
+            stream = open(self.baseFilename, self.mode, newline="")
         else:
-            stream = open(self.baseFilename, self.mode, encoding=self.encoding, newline='')
+            stream = open(
+                self.baseFilename, self.mode, encoding=self.encoding, newline=""
+            )
         return stream
 
     def emit(self, record):
@@ -46,8 +48,8 @@ class FlushTimedRotatingFileHandler(TimedRotatingFileHandler):
             msg = self.format(record)
             stream = self.stream
             # 改行コードをLFに統一（CRLFを避ける）
-            msg = msg.replace('\r\n', '\n')
-            stream.write(msg + '\n')
+            msg = msg.replace("\r\n", "\n")
+            stream.write(msg + "\n")
             stream.flush()
         except Exception:
             self.handleError(record)
@@ -120,23 +122,41 @@ class LoggingPlugin(NotificationPlugin):
         log_level_file = LEVEL_MAP.get(LOG_LEVEL_FILE, logging.DEBUG)
 
         # 個別ロガーのログレベル設定（環境変数で指定されていればデフォルト値をオーバーライド）
-        log_level_app = LEVEL_MAP.get(os.getenv("LOG_LEVEL_APP", "").upper(), log_level_file)
-        log_level_audit = LEVEL_MAP.get(os.getenv("LOG_LEVEL_AUDIT", "").upper(), logging.INFO)
-        log_level_tunnel = LEVEL_MAP.get(os.getenv("LOG_LEVEL_TUNNEL", "").upper(), log_level_file)
+        log_level_app = LEVEL_MAP.get(
+            os.getenv("LOG_LEVEL_APP", "").upper(), log_level_file
+        )
+        log_level_audit = LEVEL_MAP.get(
+            os.getenv("LOG_LEVEL_AUDIT", "").upper(), logging.INFO
+        )
+        log_level_tunnel = LEVEL_MAP.get(
+            os.getenv("LOG_LEVEL_TUNNEL", "").upper(), log_level_file
+        )
         log_level_thumbnails_env = os.getenv("LOG_LEVEL_THUMBNAILS", "").upper()
-        log_level_thumbnails = LEVEL_MAP.get(log_level_thumbnails_env, log_level_file) if log_level_thumbnails_env else log_level_file
-        log_level_youtube = LEVEL_MAP.get(os.getenv("LOG_LEVEL_YOUTUBE", "").upper(), log_level_file)
-        log_level_niconico = LEVEL_MAP.get(os.getenv("LOG_LEVEL_NICONICO", "").upper(), log_level_file)
+        log_level_thumbnails = (
+            LEVEL_MAP.get(log_level_thumbnails_env, log_level_file)
+            if log_level_thumbnails_env
+            else log_level_file
+        )
+        log_level_youtube = LEVEL_MAP.get(
+            os.getenv("LOG_LEVEL_YOUTUBE", "").upper(), log_level_file
+        )
+        log_level_niconico = LEVEL_MAP.get(
+            os.getenv("LOG_LEVEL_NICONICO", "").upper(), log_level_file
+        )
 
         # ログの保管日数を取得（デフォルト14日）
         try:
             log_retention_days_str = os.getenv("LOG_RETENTION_DAYS", "14")
             log_retention_days = int(log_retention_days_str)
             if log_retention_days <= 0:
-                print(f"Warning: LOG_RETENTION_DAYS value '{log_retention_days_str}' is not positive. Defaulting to 14 days.")
+                print(
+                    f"Warning: LOG_RETENTION_DAYS value '{log_retention_days_str}' is not positive. Defaulting to 14 days."
+                )
                 log_retention_days = 14
         except ValueError:
-            print(f"Warning: Invalid LOG_RETENTION_DAYS value '{os.getenv('LOG_RETENTION_DAYS')}'. Defaulting to 14 days.")
+            print(
+                f"Warning: Invalid LOG_RETENTION_DAYS value '{os.getenv('LOG_RETENTION_DAYS')}'. Defaulting to 14 days."
+            )
             log_retention_days = 14
 
         # 監査ログ専用ロガー
@@ -179,7 +199,9 @@ class LoggingPlugin(NotificationPlugin):
             encoding="utf-8",
         )
         info_file_handler.setLevel(logging.DEBUG)  # DEBUG レベル以上を受け付ける
-        info_file_handler.addFilter(DebugAndInfoFilter())  # DEBUG と INFO のみをフィルタリング
+        info_file_handler.addFilter(
+            DebugAndInfoFilter()
+        )  # DEBUG と INFO のみをフィルタリング
         info_file_handler.setFormatter(error_format)
         logger.addHandler(info_file_handler)
 
@@ -195,8 +217,12 @@ class LoggingPlugin(NotificationPlugin):
             backupCount=log_retention_days,
             encoding="utf-8",
         )
-        error_file_handler.setLevel(logging.WARNING)  # WARNING 以上のレベルのみ受け付ける
-        error_file_handler.addFilter(WarningAndAboveFilter())  # WARNING 以上のみをフィルタリング
+        error_file_handler.setLevel(
+            logging.WARNING
+        )  # WARNING 以上のレベルのみ受け付ける
+        error_file_handler.addFilter(
+            WarningAndAboveFilter()
+        )  # WARNING 以上のみをフィルタリング
         error_file_handler.setFormatter(error_format)
         logger.addHandler(error_file_handler)
 
@@ -380,8 +406,17 @@ class LoggingPlugin(NotificationPlugin):
 
         # 全ロガー（AppLogger, YouTubeLogger, NiconicoLogger など）をDEBUGに設定
         # ★重要★ ハンドラーレベルは変更しない（ハンドラーごとに出力対象が定義されているため）
-        for logger_name in ['AppLogger', 'AuditLogger', 'PostLogger', 'TunnelLogger',
-                            'YouTubeLogger', 'NiconicoLogger', 'ImageLogger', 'GUILogger', 'WebhookLogger']:
+        for logger_name in [
+            "AppLogger",
+            "AuditLogger",
+            "PostLogger",
+            "TunnelLogger",
+            "YouTubeLogger",
+            "NiconicoLogger",
+            "ImageLogger",
+            "GUILogger",
+            "WebhookLogger",
+        ]:
             logger = logging.getLogger(logger_name)
             logger.setLevel(logging.DEBUG)  # ロガーのレベルのみをDEBUGに変更
 
@@ -406,4 +441,3 @@ class LoggingPlugin(NotificationPlugin):
 def get_logging_plugin(env_path: Optional[str] = None) -> LoggingPlugin:
     """ロギングプラグインを取得"""
     return LoggingPlugin(env_path)
-

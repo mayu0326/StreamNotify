@@ -43,13 +43,13 @@ def fetch_thumbnail_url(video_id: str) -> str | None:
     try:
         resp = requests.get(video_url, headers=headers, timeout=15)
         resp.raise_for_status()
-        resp.encoding = 'utf-8'
+        resp.encoding = "utf-8"
 
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        og_image = soup.find('meta', property='og:image')
-        
-        if og_image and og_image.get('content'):
-            ogp_url = og_image.get('content')
+        soup = BeautifulSoup(resp.text, "html.parser")
+        og_image = soup.find("meta", property="og:image")
+
+        if og_image and og_image.get("content"):
+            ogp_url = og_image.get("content")
             logger.debug(f"[OGP取得] {video_id} -> {ogp_url}")
             return ogp_url
         else:
@@ -151,4 +151,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -35,10 +35,10 @@ v3_path = Path(__file__).parent.parent.parent / "v3"
 sys.path.insert(0, str(v3_path))
 
 import sqlite3
-from datetime import datetime
 
 # DB パス
 DB_PATH = v3_path / "data" / "video_list.db"
+
 
 def reset_post_flag(video_id: str) -> bool:
     """
@@ -61,7 +61,7 @@ def reset_post_flag(video_id: str) -> bool:
         # 既存データを確認
         cursor.execute(
             "SELECT video_id, title, posted_to_bluesky, posted_at FROM videos WHERE video_id = ?",
-            (video_id,)
+            (video_id,),
         )
         row = cursor.fetchone()
 
@@ -79,8 +79,10 @@ def reset_post_flag(video_id: str) -> bool:
         print(f"   posted_at: {posted_at}")
 
         # 確認
-        response = input(f"\n⚠️  このレコードをリセットしますか？ [y/N]: ").strip().lower()
-        if response != 'y':
+        response = (
+            input(f"\n⚠️  このレコードをリセットしますか？ [y/N]: ").strip().lower()
+        )
+        if response != "y":
             print("❌ キャンセルしました")
             conn.close()
             return False
@@ -88,7 +90,7 @@ def reset_post_flag(video_id: str) -> bool:
         # リセット実行
         cursor.execute(
             "UPDATE videos SET posted_to_bluesky = 0, posted_at = NULL WHERE video_id = ?",
-            (video_id,)
+            (video_id,),
         )
         conn.commit()
 
@@ -105,6 +107,7 @@ def reset_post_flag(video_id: str) -> bool:
     except Exception as e:
         print(f"❌ エラー: {e}")
         return False
+
 
 def reset_multiple(video_ids: list) -> bool:
     """
@@ -128,6 +131,7 @@ def reset_multiple(video_ids: list) -> bool:
 
     print(f"\n📊 結果: 成功 {success_count} 件、失敗 {failed_count} 件")
     return failed_count == 0
+
 
 def reset_all_videos() -> bool:
     """
@@ -182,14 +186,18 @@ def reset_all_videos() -> bool:
         # 確認
         print(f"\n⚠️  投稿済み {posted_count} 件をすべてリセットしますか？")
         response = input("   本当にリセットしますか？ [y/N]: ").strip().lower()
-        if response != 'y':
+        if response != "y":
             print("❌ キャンセルしました")
             conn.close()
             return False
 
         # 最終確認
-        response = input("   💥 本当にリセットしますか？（戻すことはできません） [yes/no]: ").strip().lower()
-        if response != 'yes':
+        response = (
+            input("   💥 本当にリセットしますか？（戻すことはできません） [yes/no]: ")
+            .strip()
+            .lower()
+        )
+        if response != "yes":
             print("❌ キャンセルしました")
             conn.close()
             return False
@@ -215,6 +223,7 @@ def reset_all_videos() -> bool:
     except Exception as e:
         print(f"❌ エラー: {e}")
         return False
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

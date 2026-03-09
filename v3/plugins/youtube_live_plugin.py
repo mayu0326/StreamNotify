@@ -7,6 +7,7 @@ YouTubeLive 検出プラグイン
 - NotificationPlugin 準拠
 - API プラグインのキャッシュ・クォータ管理を継承
 """
+
 import os
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -42,7 +43,9 @@ class YouTubeLivePlugin(NotificationPlugin):
         return "0.2.0"
 
     def get_description(self) -> str:
-        return "YouTubeライブ/アーカイブ判定を行いDBに格納するプラグイン（クォータ対応）"
+        return (
+            "YouTubeライブ/アーカイブ判定を行いDBに格納するプラグイン（クォータ対応）"
+        )
 
     def post_video(self, video: Dict[str, Any]) -> bool:
         """
@@ -59,7 +62,9 @@ class YouTubeLivePlugin(NotificationPlugin):
 
         # YouTube ID 形式の検証（Niconico など他形式のスキップ）
         if not self._is_valid_youtube_video_id(video_id):
-            logger.debug(f"⏭️ YouTube Live: YouTube 形式ではない video_id をスキップ: {video_id}")
+            logger.debug(
+                f"⏭️ YouTube Live: YouTube 形式ではない video_id をスキップ: {video_id}"
+            )
             return True  # エラーではなく「対応不可」として True を返す
 
         # API プラグインの _fetch_video_detail() を使用
@@ -74,7 +79,9 @@ class YouTubeLivePlugin(NotificationPlugin):
         title = video.get("title") or snippet.get("title", "【ライブ】")
         channel_name = video.get("channel_name") or snippet.get("channelTitle", "")
         published_at = video.get("published_at") or snippet.get("publishedAt", "")
-        video_url = video.get("video_url") or f"https://www.youtube.com/watch?v={video_id}"
+        video_url = (
+            video.get("video_url") or f"https://www.youtube.com/watch?v={video_id}"
+        )
         thumbnail_url = snippet.get("thumbnails", {}).get("high", {}).get("url", "")
 
         return self.db.insert_video(
@@ -106,8 +113,9 @@ class YouTubeLivePlugin(NotificationPlugin):
             True: YouTube 形式, False: 他の形式（Niconico など）
         """
         import re
+
         # YouTube 動画ID: 11 文字、A-Za-z0-9-_
-        if re.match(r'^[A-Za-z0-9_-]{11}$', video_id):
+        if re.match(r"^[A-Za-z0-9_-]{11}$", video_id):
             return True
         return False
 
@@ -149,7 +157,11 @@ class YouTubeLivePlugin(NotificationPlugin):
             resp.raise_for_status()
             data = resp.json()
             items = data.get("items", []) if data else []
-            video_ids = [item.get("id", {}).get("videoId") for item in items if item.get("id", {}).get("videoId")]
+            video_ids = [
+                item.get("id", {}).get("videoId")
+                for item in items
+                if item.get("id", {}).get("videoId")
+            ]
             logger.info(f"✅ ライブ一覧取得成功: {len(video_ids)} 件 ({event_type})")
             return video_ids
         except requests.exceptions.Timeout:
@@ -159,7 +171,9 @@ class YouTubeLivePlugin(NotificationPlugin):
             logger.error(f"❌ ライブ一覧取得エラー ({event_type}): {e}")
             return []
 
-    def _classify_live(self, details: Dict[str, Any]) -> Tuple[str, Optional[str], bool]:
+    def _classify_live(
+        self, details: Dict[str, Any]
+    ) -> Tuple[str, Optional[str], bool]:
         """
         ライブ/アーカイブを判別
 
@@ -185,6 +199,7 @@ class YouTubeLivePlugin(NotificationPlugin):
         try:
             # Bluesky プラグインを取得
             from plugin_manager import PluginManager
+
             pm = PluginManager()
             bluesky_plugin = pm.get_plugin("bluesky_plugin")
 
@@ -217,6 +232,7 @@ class YouTubeLivePlugin(NotificationPlugin):
         try:
             # Bluesky プラグインを取得
             from plugin_manager import PluginManager
+
             pm = PluginManager()
             bluesky_plugin = pm.get_plugin("bluesky_plugin")
 
@@ -268,17 +284,24 @@ class YouTubeLivePlugin(NotificationPlugin):
 
                 # ライブ終了検知
                 if live_status == "completed" or content_type == "archive":
-                    logger.info(f"✅ ライブ終了を検知: {video_id} (live_status={live_status}, content_type={content_type})")
+                    logger.info(
+                        f"✅ ライブ終了を検知: {video_id} (live_status={live_status}, content_type={content_type})"
+                    )
 
                     # DB 更新
                     self.db.update_video_status(video_id, content_type, live_status)
 
                     # 自動投稿（設定確認）
-                    auto_post_end = os.getenv("YOUTUBE_LIVE_AUTO_POST_END", "true").lower() == "true"
+                    auto_post_end = (
+                        os.getenv("YOUTUBE_LIVE_AUTO_POST_END", "true").lower()
+                        == "true"
+                    )
                     if auto_post_end:
                         self.auto_post_live_end(video)
                     else:
-                        logger.info("ℹ️ YOUTUBE_LIVE_AUTO_POST_END=false のため投稿をスキップ")
+                        logger.info(
+                            "ℹ️ YOUTUBE_LIVE_AUTO_POST_END=false のため投稿をスキップ"
+                        )
 
         except Exception as e:
             logger.error(f"❌ ライブ終了チェックエラー: {e}")

@@ -17,8 +17,6 @@ import re
 import json
 import requests
 from datetime import datetime, timezone
-from pathlib import Path
-from plugin_interface import NotificationPlugin
 
 logger = logging.getLogger("AppLogger")
 post_logger = logging.getLogger("PostLogger")
@@ -33,6 +31,7 @@ __version__ = "1.0.0"
 # --- 最小限投稿API ---
 class BlueskyMinimalPoster:
     """Bluesky最小限投稿クラス（API本体）"""
+
     def __init__(self, username: str, password: str, dry_run: bool = False):
         self.username = username
         self.password = password
@@ -40,9 +39,15 @@ class BlueskyMinimalPoster:
         self.access_token = None
         self.did = None
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("🔍 BlueskyMinimalPoster init: username=%s, dry_run=%s", self.username, self.dry_run)
+            logger.debug(
+                "🔍 BlueskyMinimalPoster init: username=%s, dry_run=%s",
+                self.username,
+                self.dry_run,
+            )
         if dry_run:
-            logger.info("🧪 BlueSky投稿機能はオフになっています。DRYRUNモードに切り替えました。")
+            logger.info(
+                "🧪 BlueSky投稿機能はオフになっています。DRYRUNモードに切り替えました。"
+            )
         else:
             self._login()
 
@@ -54,7 +59,9 @@ class BlueskyMinimalPoster:
                 logger.debug("🔍 Bluesky login request: %s", auth_url)
             response = requests.post(auth_url, json=auth_data, timeout=30)
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("🔍 Bluesky login response status: %s", response.status_code)
+                logger.debug(
+                    "🔍 Bluesky login response status: %s", response.status_code
+                )
             response.raise_for_status()
             session_data = response.json()
             self.access_token = session_data.get("accessJwt")
@@ -91,25 +98,17 @@ class BlueskyMinimalPoster:
         facets = []
 
         # ============ URL facet の検出 ============
-        url_pattern = r'https?://[^\s]+'
+        url_pattern = r"https?://[^\s]+"
         for match in re.finditer(url_pattern, text):
             url = match.group(0)
 
             # UTF-8 バイト位置を計算
-            byte_start = len(text[:match.start()].encode('utf-8'))
-            byte_end = len(text[:match.end()].encode('utf-8'))
+            byte_start = len(text[: match.start()].encode("utf-8"))
+            byte_end = len(text[: match.end()].encode("utf-8"))
 
             facet = {
-                "index": {
-                    "byteStart": byte_start,
-                    "byteEnd": byte_end
-                },
-                "features": [
-                    {
-                        "$type": "app.bsky.richtext.facet#link",
-                        "uri": url
-                    }
-                ]
+                "index": {"byteStart": byte_start, "byteEnd": byte_end},
+                "features": [{"$type": "app.bsky.richtext.facet#link", "uri": url}],
             }
             facets.append(facet)
             post_logger.info(f"  🔗 URL 検出: {url}")
@@ -118,7 +117,7 @@ class BlueskyMinimalPoster:
         # ============ ハッシュタグ facet の検出 ============
         # パターン: 単語境界または行頭または空白 + # + 連続する非空白文字（空白と#以外）
         # マルチバイト文字も対応
-        hashtag_pattern = r'(?:^|\s)(#[^\s#]+)'
+        hashtag_pattern = r"(?:^|\s)(#[^\s#]+)"
 
         for match in re.finditer(hashtag_pattern, text):
             full_match = match.group(0)  # 前の空白or行頭を含む
@@ -131,23 +130,21 @@ class BlueskyMinimalPoster:
             # フルマッチが空白で始まる場合、その空白分をオフセット
             offset_in_match = len(full_match) - len(tag_with_hash)
 
-            byte_start = len(text[:match.start() + offset_in_match].encode('utf-8'))
-            byte_end = len(text[:match.start() + offset_in_match + len(tag_with_hash)].encode('utf-8'))
+            byte_start = len(text[: match.start() + offset_in_match].encode("utf-8"))
+            byte_end = len(
+                text[: match.start() + offset_in_match + len(tag_with_hash)].encode(
+                    "utf-8"
+                )
+            )
 
             facet = {
-                "index": {
-                    "byteStart": byte_start,
-                    "byteEnd": byte_end
-                },
-                "features": [
-                    {
-                        "$type": "app.bsky.richtext.facet#tag",
-                        "tag": tag_name
-                    }
-                ]
+                "index": {"byteStart": byte_start, "byteEnd": byte_end},
+                "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": tag_name}],
             }
             facets.append(facet)
-            post_logger.info(f"  #️⃣  ハッシュタグ検出: {tag_with_hash} (タグ: {tag_name})")
+            post_logger.info(
+                f"  #️⃣  ハッシュタグ検出: {tag_with_hash} (タグ: {tag_name})"
+            )
             post_logger.info(f"     バイト位置: {byte_start} - {byte_end}")
 
         return facets if facets else None
@@ -182,10 +179,7 @@ class BlueskyMinimalPoster:
                 post_text = text_override
                 post_logger.info(f"📝 テンプレート生成済みの本文を使用します")
             elif source == "niconico":
-                if channel_name:
-                    post_text = f"{title}\n\n🎬 {channel_name}\n📅 {published_at[:10]}\n\n{video_url}"
-                else:
-                    post_text = f"{title}\n\n📅 {published_at[:10]}\n\n{video_url}"
+                post_text = f"{title}\n\n📅 {published_at[:10]}\n\n{video_url}"
             else:
                 # YouTube（デフォルト）
                 post_text = f"{title}\n\n🎬 {channel_name}\n📅 {published_at[:10]}\n\n{video_url}"
@@ -202,7 +196,7 @@ class BlueskyMinimalPoster:
             via_plugin = video.get("via_plugin", True)
             # use_link_card フラグを取得（デフォルト: True - プラグイン有効時のみ使用）
             use_link_card = video.get("use_link_card", True)
-            created_at = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
             # Facet を構築（URL をリンク化）
             post_logger.info("📍 Facet を構築しています...")
@@ -247,18 +241,22 @@ class BlueskyMinimalPoster:
             post_data = {
                 "repo": self.did,
                 "collection": "app.bsky.feed.post",
-                "record": post_record
+                "record": post_record,
             }
             headers = {
                 "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
-            post_logger.info(f"📍 投稿: text={len(post_text)} 文字, facets={len(facets) if facets else 0} 個, 画像={bool(embed)}")
+            post_logger.info(
+                f"📍 投稿: text={len(post_text)} 文字, facets={len(facets) if facets else 0} 個, 画像={bool(embed)}"
+            )
             if facets:
                 post_logger.info(f"   facets: {[f['index'] for f in facets]}")
 
-            response = requests.post(post_url, json=post_data, headers=headers, timeout=30)
+            response = requests.post(
+                post_url, json=post_data, headers=headers, timeout=30
+            )
             response.raise_for_status()
             response_data = response.json()
             uri = response_data.get("uri", "unknown")
@@ -275,16 +273,28 @@ class BlueskyMinimalPoster:
             # HTTP エラーの詳細情報をログ
             try:
                 error_data = e.response.json()
-                logger.error(f"❌ Bluesky API エラー ({e.response.status_code}): {error_data}")
-                post_logger.error(f"❌ Bluesky API エラー ({e.response.status_code}): {error_data}")
+                logger.error(
+                    f"❌ Bluesky API エラー ({e.response.status_code}): {error_data}"
+                )
+                post_logger.error(
+                    f"❌ Bluesky API エラー ({e.response.status_code}): {error_data}"
+                )
             except:
-                logger.error(f"❌ Bluesky API エラー: {e.response.status_code} - {e.response.text}")
-                post_logger.error(f"❌ Bluesky API エラー: {e.response.status_code} - {e.response.text}")
-            logger.error(f"投稿リクエストボディ: {json.dumps(post_data, indent=2, default=str)}", exc_info=False)
+                logger.error(
+                    f"❌ Bluesky API エラー: {e.response.status_code} - {e.response.text}"
+                )
+                post_logger.error(
+                    f"❌ Bluesky API エラー: {e.response.status_code} - {e.response.text}"
+                )
+            logger.error(
+                f"投稿リクエストボディ: {json.dumps(post_data, indent=2, default=str)}",
+                exc_info=False,
+            )
             return False
         except Exception as e:
             logger.error(f"投稿処理中にエラーが発生しました: {e}", exc_info=True)
             return False
+
     # ============ リンクカード機能（OGP 取得） ============
 
     def _fetch_ogp_data(self, url: str) -> dict:
@@ -308,7 +318,9 @@ class BlueskyMinimalPoster:
             try:
                 from bs4 import BeautifulSoup
             except ImportError:
-                post_logger.warning("⚠️ BeautifulSoup がインストールされていません。OGP 取得をスキップします")
+                post_logger.warning(
+                    "⚠️ BeautifulSoup がインストールされていません。OGP 取得をスキップします"
+                )
                 return None
 
             soup = BeautifulSoup(resp.text, "html.parser")
@@ -331,12 +343,13 @@ class BlueskyMinimalPoster:
             # 相対 URL を絶対 URL に変換
             if image_url and "://" not in image_url:
                 from urllib.parse import urljoin
+
                 image_url = urljoin(url, image_url)
 
             ogp_data = {
                 "title": title[:100],  # 最大 100 文字
                 "description": description[:256],  # 最大 256 文字
-                "image_url": image_url
+                "image_url": image_url,
             }
 
             post_logger.info(f"✅ OGP 取得成功: title={ogp_data['title'][:30]}...")
@@ -358,12 +371,14 @@ class BlueskyMinimalPoster:
         """
         try:
             if self.dry_run:
-                post_logger.info(f"🧪 [DRY RUN] 画像アップロード（スキップ）: {image_url}")
+                post_logger.info(
+                    f"🧪 [DRY RUN] 画像アップロード（スキップ）: {image_url}"
+                )
                 return {
                     "$type": "blob",
                     "mimeType": "image/jpeg",
                     "size": 1000,
-                    "link": {"$link": "bafkreidummy"}
+                    "link": {"$link": "bafkreidummy"},
                 }
 
             post_logger.info(f"📥 OGP 画像をダウンロード中: {image_url}")
@@ -374,7 +389,9 @@ class BlueskyMinimalPoster:
 
             # ファイルサイズチェック（1MB 制限）
             if len(img_resp.content) > 1_000_000:
-                post_logger.warning(f"⚠️ OGP 画像が大きすぎます: {len(img_resp.content)} bytes > 1MB")
+                post_logger.warning(
+                    f"⚠️ OGP 画像が大きすぎます: {len(img_resp.content)} bytes > 1MB"
+                )
                 return None
 
             # MIME Type を取得
@@ -382,21 +399,20 @@ class BlueskyMinimalPoster:
 
             # アクセストークン確認
             if not self.access_token:
-                post_logger.warning(f"⚠️ 認証トークンがありません。OGP 画像をアップロードできません")
+                post_logger.warning(
+                    f"⚠️ 認証トークンがありません。OGP 画像をアップロードできません"
+                )
                 return None
 
             # Blob としてアップロード
             upload_url = "https://bsky.social/xrpc/com.atproto.repo.uploadBlob"
             headers = {
                 "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": mime_type
+                "Content-Type": mime_type,
             }
 
             upload_resp = requests.post(
-                upload_url,
-                data=img_resp.content,
-                headers=headers,
-                timeout=30
+                upload_url, data=img_resp.content, headers=headers, timeout=30
             )
             upload_resp.raise_for_status()
 
@@ -404,7 +420,9 @@ class BlueskyMinimalPoster:
             blob = result.get("blob")
 
             if blob:
-                post_logger.info(f"✅ OGP 画像アップロード成功: {blob.get('mimeType')} ({len(img_resp.content)} bytes)")
+                post_logger.info(
+                    f"✅ OGP 画像アップロード成功: {blob.get('mimeType')} ({len(img_resp.content)} bytes)"
+                )
                 return blob
             else:
                 post_logger.warning(f"⚠️ Blob メタデータが返されませんでした")
@@ -431,7 +449,9 @@ class BlueskyMinimalPoster:
         try:
             ogp_data = self._fetch_ogp_data(url)
             if not ogp_data:
-                post_logger.warning(f"⚠️ OGP データが取得できませんでした。リンクカードなしで投稿します")
+                post_logger.warning(
+                    f"⚠️ OGP データが取得できませんでした。リンクカードなしで投稿します"
+                )
                 return None
 
             # リンクカード基本情報
@@ -440,8 +460,8 @@ class BlueskyMinimalPoster:
                 "external": {
                     "uri": url,
                     "title": ogp_data["title"],
-                    "description": ogp_data["description"]
-                }
+                    "description": ogp_data["description"],
+                },
             }
 
             # 画像がある場合、アップロード
@@ -457,4 +477,3 @@ class BlueskyMinimalPoster:
         except Exception as e:
             post_logger.warning(f"⚠️ リンクカード構築失敗: {e}")
             return None
-

@@ -7,8 +7,9 @@ YouTube動画の重複排除ロジック
 優先度に基づいて保持すべき動画を特定する。
 """
 
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from datetime import datetime
+from typing import List, Dict, Any
+
 
 def get_video_priority(video: Dict[str, Any]) -> tuple:
     """
@@ -17,11 +18,11 @@ def get_video_priority(video: Dict[str, Any]) -> tuple:
     返り値が大きいほど優先度が高い
     Returns: (優先度, コンテンツ種別, video_id)
     """
-    content_type = video.get('content_type', 'video')
-    live_status = video.get('live_status')
-    is_premiere = video.get('is_premiere', 0)
-    published_at_str = video.get('published_at', '')
-    video_id = video.get('video_id', '')
+    content_type = video.get("content_type", "video")
+    live_status = video.get("live_status")
+    is_premiere = video.get("is_premiere", 0)
+    published_at_str = video.get("published_at", "")
+    video_id = video.get("video_id", "")
 
     # プレミア公開判定用
     now = datetime.now()
@@ -30,7 +31,9 @@ def get_video_priority(video: Dict[str, Any]) -> tuple:
     if is_premiere and published_at_str:
         try:
             # published_at は ISO 8601 形式: "2025-12-18T10:30:00"
-            premiere_time = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
+            premiere_time = datetime.fromisoformat(
+                published_at_str.replace("Z", "+00:00")
+            )
             if premiere_time.tzinfo:
                 premiere_time = premiere_time.replace(tzinfo=None)
 
@@ -48,9 +51,9 @@ def get_video_priority(video: Dict[str, Any]) -> tuple:
 
     # 優先度を計算（大きいほど優先度が高い）
     # アーカイブ > ライブ > プレミア公開（開始予定/近い） > 通常動画
-    if content_type == 'archive' or live_status == 'completed':
+    if content_type == "archive" or live_status == "completed":
         priority = 4
-    elif content_type == 'live' or live_status in ('live', 'upcoming'):
+    elif content_type == "live" or live_status in ("live", "upcoming"):
         priority = 3
     elif is_premiere and premiere_priority == 3:
         priority = 3
@@ -63,7 +66,9 @@ def get_video_priority(video: Dict[str, Any]) -> tuple:
     return (priority, content_type, video_id)
 
 
-def should_keep_video(video: Dict[str, Any], existing_videos: List[Dict[str, Any]]) -> bool:
+def should_keep_video(
+    video: Dict[str, Any], existing_videos: List[Dict[str, Any]]
+) -> bool:
     """
     新しい動画を登録すべきかを判定
 
@@ -85,8 +90,7 @@ def should_keep_video(video: Dict[str, Any], existing_videos: List[Dict[str, Any
 
     # 既存動画の中で最も優先度が高いものを取得
     max_existing_priority = max(
-        get_video_priority(existing)
-        for existing in existing_videos
+        get_video_priority(existing) for existing in existing_videos
     )
 
     # 新しい動画の優先度が既存の最大値よりも高い場合のみ登録
@@ -112,10 +116,34 @@ def select_best_video(videos: List[Dict[str, Any]]) -> Dict[str, Any]:
 # テスト用サンプルデータ
 if __name__ == "__main__":
     samples = [
-        {"video_id": "vid1", "content_type": "video", "live_status": None, "is_premiere": 0, "published_at": "2025-12-18T10:00:00"},
-        {"video_id": "vid2", "content_type": "live", "live_status": "live", "is_premiere": 0, "published_at": "2025-12-18T11:00:00"},
-        {"video_id": "vid3", "content_type": "archive", "live_status": "completed", "is_premiere": 0, "published_at": "2025-12-18T12:00:00"},
-        {"video_id": "vid4", "content_type": "video", "live_status": None, "is_premiere": 1, "published_at": "2025-12-18T22:40:00"},  # 近い未来
+        {
+            "video_id": "vid1",
+            "content_type": "video",
+            "live_status": None,
+            "is_premiere": 0,
+            "published_at": "2025-12-18T10:00:00",
+        },
+        {
+            "video_id": "vid2",
+            "content_type": "live",
+            "live_status": "live",
+            "is_premiere": 0,
+            "published_at": "2025-12-18T11:00:00",
+        },
+        {
+            "video_id": "vid3",
+            "content_type": "archive",
+            "live_status": "completed",
+            "is_premiere": 0,
+            "published_at": "2025-12-18T12:00:00",
+        },
+        {
+            "video_id": "vid4",
+            "content_type": "video",
+            "live_status": None,
+            "is_premiere": 1,
+            "published_at": "2025-12-18T22:40:00",
+        },  # 近い未来
     ]
 
     print("=== 優先度テスト ===")

@@ -12,7 +12,7 @@ RSS・WebSub 両モード対応。
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Optional
 from datetime import datetime, timedelta, timezone
 from threading import RLock
 
@@ -49,7 +49,6 @@ class LiveScheduler:
         """APScheduler を初期化"""
         try:
             from apscheduler.schedulers.background import BackgroundScheduler
-            from apscheduler.triggers.date import DateTrigger
             from apscheduler.executors.pool import ThreadPoolExecutor
 
             # バックグラウンドスケジューラーを作成
@@ -93,7 +92,9 @@ class LiveScheduler:
             bool: スケジュール成功時 True、失敗時 False
         """
         if self._scheduler is None:
-            logger.warning(f"⚠️ Live スケジューラーが初期化されていません（スケジュール失敗）: {video_id}")
+            logger.warning(
+                f"⚠️ Live スケジューラーが初期化されていません（スケジュール失敗）: {video_id}"
+            )
             return False
 
         if not scheduled_start_at_jst or not video_id:
@@ -221,7 +222,9 @@ class LiveScheduler:
 
             # Live 関連動画をモジュールに登録
             if self.live_module:
-                live_result = self.live_module.register_from_classified(classification_result)
+                live_result = self.live_module.register_from_classified(
+                    classification_result
+                )
                 if live_result > 0:
                     youtube_logger.info(
                         f"✅ Live 詳細情報を更新: {video_id} (type={classification_result.get('type')})"

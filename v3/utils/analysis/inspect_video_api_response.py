@@ -5,8 +5,8 @@ YouTube API レスポンス詳細確認
 
 D5fDvRBf6vk の詳細情報を取得して、プレミア公開と配信予定枠の区別を調査
 """
+
 import sys
-import os
 from pathlib import Path
 from dotenv import load_dotenv
 import json
@@ -25,9 +25,9 @@ def main():
     """メイン処理"""
     video_id = "D5fDvRBf6vk"
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print(f"🔍 YouTube API レスポンス詳細確認：{video_id}")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # API プラグインを初期化
     plugin = YouTubeAPIPlugin()
@@ -88,7 +88,9 @@ def main():
     # プレミア判定ロジック詳細
     print("【プレミア判定ロジック】")
     print(f"  uploadStatus == 'processed': {status.get('uploadStatus') == 'processed'}")
-    print(f"  broadcast_type in ('live', 'upcoming'): {snippet.get('liveBroadcastContent') in ('live', 'upcoming')}")
+    print(
+        f"  broadcast_type in ('live', 'upcoming'): {snippet.get('liveBroadcastContent') in ('live', 'upcoming')}"
+    )
     print(f"  liveStreamingDetails exists: {bool(live)}")
     print(f"  is_premiere: {is_premiere}")
     print()
@@ -97,7 +99,7 @@ def main():
     print("【全データ（JSON）】")
     print(json.dumps(details, indent=2, ensure_ascii=False))
 
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     return 0
 
