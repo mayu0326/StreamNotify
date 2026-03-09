@@ -7,10 +7,7 @@ Stream notify on Bluesky - v3 ロギング設定
 ロギングプラグインが導入されている場合は、そちらの設定を優先的に使用。
 """
 
-
-
 import os
-import sys
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -29,12 +26,19 @@ class NoExcInfoStreamHandler(logging.StreamHandler):
             record.exc_info = orig_exc_info
             record.exc_text = orig_exc_text
 
+
 # --- CRLF→LF対応: LFでファイルを開くRotatingFileHandler ---
-import io
 class LFRotatingFileHandler(RotatingFileHandler):
     def _open(self):
         # encoding, errors, newline を明示的に指定
-        return open(self.baseFilename, self.mode, encoding=self.encoding, errors=self.errors, newline='\n')
+        return open(
+            self.baseFilename,
+            self.mode,
+            encoding=self.encoding,
+            errors=self.errors,
+            newline="\n",
+        )
+
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
@@ -56,6 +60,7 @@ def _try_load_logging_plugin():
 
         # プラグインをインポート
         from plugins.logging_plugin import get_logging_plugin
+
         plugin = get_logging_plugin()
 
         # プラグインが利用可能か確認
@@ -89,7 +94,9 @@ def setup_logging(debug_mode=False):
         # プラグインが利用可能な場合
         logging_plugin.configure_logging()
         logger = logging.getLogger("AppLogger")
-        logger.info(f"✅ {logging_plugin.get_name()} v{logging_plugin.get_version()} を使用してロギング設定を行いました")
+        logger.info(
+            f"✅ {logging_plugin.get_name()} v{logging_plugin.get_version()} を使用してロギング設定を行いました"
+        )
 
         # デバッグモードの反映
         if debug_mode:
@@ -103,7 +110,7 @@ def setup_logging(debug_mode=False):
     logger = logging.getLogger("AppLogger")
     logger.setLevel(logging.DEBUG if debug_mode else logging.INFO)
 
-# 既にハンドラが設定されている場合は PostLogger のみ設定して返す
+    # 既にハンドラが設定されている場合は PostLogger のみ設定して返す
     if logger.handlers:
         # ★ 既存ハンドラがある場合でも PostLogger は設定する必要がある
         post_logger = logging.getLogger("PostLogger")
@@ -117,13 +124,9 @@ def setup_logging(debug_mode=False):
         post_logger.propagate = False
         return logger
 
-
     # --- app.log: INFO以下, LF改行 ---
     app_fh = LFRotatingFileHandler(
-        "logs/app.log",
-        maxBytes=10*1024*1024,
-        backupCount=5,
-        encoding="utf-8"
+        "logs/app.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
     app_fh.setLevel(logging.DEBUG)  # ★ ハンドラーは常にDEBUGで受け取る
 
@@ -133,14 +136,13 @@ def setup_logging(debug_mode=False):
         app_fh.addFilter(lambda record: record.levelno < logging.WARNING)
     else:
         # デバッグモード OFF: INFO以上のみ出力（DEBUGは除外）
-        app_fh.addFilter(lambda record: logging.INFO <= record.levelno < logging.WARNING)
+        app_fh.addFilter(
+            lambda record: logging.INFO <= record.levelno < logging.WARNING
+        )
 
     # --- error.log: WARNING以上のみ, LF改行 ---
     error_fh = LFRotatingFileHandler(
-        "logs/error.log",
-        maxBytes=5*1024*1024,
-        backupCount=3,
-        encoding="utf-8"
+        "logs/error.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
     )
     error_fh.setLevel(logging.WARNING)
     error_fh.addFilter(lambda record: record.levelno >= logging.WARNING)
@@ -155,7 +157,6 @@ def setup_logging(debug_mode=False):
     else:
         # デバッグモード OFF: INFO以上のみ出力（DEBUGは除外、WARNING・ERROR も除外）
         ch.addFilter(lambda record: logging.INFO <= record.levelno < logging.WARNING)
-
 
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -219,4 +220,3 @@ def _apply_debug_mode(logger):
             target_logger.setLevel(logging.DEBUG)
 
     logger.debug("🔍 デバッグモードが有効になりました")
-

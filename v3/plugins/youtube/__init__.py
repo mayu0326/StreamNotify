@@ -8,6 +8,6 @@ YouTubeプラグインパッケージ
 """
 
 __all__ = [
-    'YouTubeAPIPlugin',
-    'YouTubeLivePlugin',
+    "YouTubeAPIPlugin",
+    "YouTubeLivePlugin",
 ]

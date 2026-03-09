@@ -9,7 +9,6 @@ YouTube チャンネルの RSS を取得・パース・DB に保存する。
 
 import feedparser
 import logging
-import requests
 from typing import List, Dict
 from image_manager import get_youtube_thumbnail_url
 
@@ -19,7 +18,9 @@ __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
 __license__ = "GPLv3"
 
-YOUTUBE_RSS_URL_TEMPLATE = "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+YOUTUBE_RSS_URL_TEMPLATE = (
+    "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+)
 
 
 class YouTubeRSS:
@@ -87,11 +88,14 @@ class YouTubeRSS:
         blacklist_skip_count = 0
         youtube_logger = logging.getLogger("YouTubeLogger")
 
-        youtube_logger.info(f"[YouTube RSS] 取得した {len(videos)} 個の動画を DB に照合しています...")
+        youtube_logger.info(
+            f"[YouTube RSS] 取得した {len(videos)} 個の動画を DB に照合しています..."
+        )
 
         # ★ 新: 除外動画リストを取得
         try:
             from deleted_video_cache import get_deleted_video_cache
+
             deleted_cache = get_deleted_video_cache()
         except ImportError:
             youtube_logger.warning("deleted_video_cache モジュールが見つかりません")
@@ -99,14 +103,19 @@ class YouTubeRSS:
 
         # database モジュールのロガーを一時的に YouTubeLogger に切り替え
         import database as db_module
+
         original_logger = db_module.logger
         db_module.logger = youtube_logger
 
         try:
             for video in videos:
                 # ★ 新: 除外動画リスト確認
-                if deleted_cache and deleted_cache.is_deleted(video["video_id"], source="youtube"):
-                    youtube_logger.info(f"⏭️ 除外動画リスト登録済みのため、スキップします: {video['title']}")
+                if deleted_cache and deleted_cache.is_deleted(
+                    video["video_id"], source="youtube"
+                ):
+                    youtube_logger.info(
+                        f"⏭️ 除外動画リスト登録済みのため、スキップします: {video['title']}"
+                    )
                     blacklist_skip_count += 1
                     continue
 
@@ -126,7 +135,9 @@ class YouTubeRSS:
 
                 if is_new:
                     saved_count += 1
-                    youtube_logger.debug(f"[YouTube RSS] New video saved to DB: {video['title']}")
+                    youtube_logger.debug(
+                        f"[YouTube RSS] New video saved to DB: {video['title']}"
+                    )
 
             summary = f"✅ 保存完了: 新規 {saved_count}, 既存 {existing_count}"
             if blacklist_skip_count > 0:
@@ -149,9 +160,15 @@ class YouTubeRSS:
         """RSSフィードをポーリングし、キャッシュを更新"""
         videos = self.fetch_feed()
         for video in videos:
-            video_id = video['video_id']
+            video_id = video["video_id"]
             if video_id not in self.deleted_cache:
-                self.db.insert_video(video_id, video['title'], video['video_url'], video['published_at'], video['channel_name'])
+                self.db.insert_video(
+                    video_id,
+                    video["title"],
+                    video["video_url"],
+                    video["published_at"],
+                    video["channel_name"],
+                )
                 # キャッシュ更新を追加
                 self.plugin.update_video_detail_cache(video_id, video)
 

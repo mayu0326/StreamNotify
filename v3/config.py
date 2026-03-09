@@ -22,10 +22,11 @@ DB_PATH = "data/video_list.db"
 
 class OperationMode:
     """動作モードの定義"""
-    NORMAL = "normal"           # 通常モード（収集＋手動投稿）
-    AUTO_POST = "auto_post"     # 自動投稿モード（収集＋手動・自動投稿）
-    DRY_RUN = "dry_run"         # ドライランモード（デバッグ用途・投稿機能オフ）
-    COLLECT = "collect"         # 収集モード（RSS取得のみ・投稿機能オフ）
+
+    NORMAL = "normal"  # 通常モード（収集＋手動投稿）
+    AUTO_POST = "auto_post"  # 自動投稿モード（収集＋手動・自動投稿）
+    DRY_RUN = "dry_run"  # ドライランモード（デバッグ用途・投稿機能オフ）
+    COLLECT = "collect"  # 収集モード（RSS取得のみ・投稿機能オフ）
 
 
 class Config:
@@ -50,7 +51,10 @@ class Config:
         # YouTubeAPI連携プラグイン導入フラグ（importlibで自動判定＋APIキー必須）
         try:
             import importlib.util
-            plugin_exists = importlib.util.find_spec("plugins.youtube_api_plugin") is not None
+
+            plugin_exists = (
+                importlib.util.find_spec("plugins.youtube_api_plugin") is not None
+            )
         except Exception:
             plugin_exists = False
 
@@ -68,36 +72,52 @@ class Config:
                 self.youtube_api_plugin_enabled = False
         else:
             self.youtube_api_plugin_enabled = False
-            logger.info("YouTubeAPIプラグインが導入されていません。RSS取得のみで動作します。")
+            logger.info(
+                "YouTubeAPIプラグインが導入されていません。RSS取得のみで動作します。"
+            )
 
         if not self.youtube_channel_id:
-            logger.error("YOUTUBE_CHANNEL_ID が未設定です。settings.env を確認してください。")
+            logger.error(
+                "YOUTUBE_CHANNEL_ID が未設定です。settings.env を確認してください。"
+            )
             raise ValueError("YOUTUBE_CHANNEL_ID is required")
 
         # YouTubeAPI未導入時（バリデーション段階ではINFOのみ出力。WARNINGはmain_v3で出力）
         if not plugin_exists:
-            logger.info("YouTubeAPI連携プラグインが未導入です。UCから始まるチャンネルIDのみ利用可能です。")
+            logger.info(
+                "YouTubeAPI連携プラグインが未導入です。UCから始まるチャンネルIDのみ利用可能です。"
+            )
             if not self.youtube_channel_id.startswith("UC"):
-                logger.error(f"YouTubeAPI未導入時はUCから始まるIDのみ許可されます。現在のID: {self.youtube_channel_id}")
-                raise ValueError("YouTubeAPI未導入時はUCから始まるIDのみ許可されます。設定を確認してください。")
+                logger.error(
+                    f"YouTubeAPI未導入時はUCから始まるIDのみ許可されます。現在のID: {self.youtube_channel_id}"
+                )
+                raise ValueError(
+                    "YouTubeAPI未導入時はUCから始まるIDのみ許可されます。設定を確認してください。"
+                )
 
         # Bluesky ユーザー名
         self.bluesky_username = os.getenv("BLUESKY_USERNAME", "").strip()
         if not self.bluesky_username:
-            logger.error("BLUESKY_USERNAME が未設定です。settings.env を確認してください。")
+            logger.error(
+                "BLUESKY_USERNAME が未設定です。settings.env を確認してください。"
+            )
             raise ValueError("BLUESKY_USERNAME is required")
 
         # Bluesky アプリパスワード
         self.bluesky_password = os.getenv("BLUESKY_PASSWORD", "").strip()
         if not self.bluesky_password:
-            logger.error("BLUESKY_PASSWORD が未設定です。settings.env を確認してください。")
+            logger.error(
+                "BLUESKY_PASSWORD が未設定です。settings.env を確認してください。"
+            )
             raise ValueError("BLUESKY_PASSWORD is required")
 
         # ポーリング間隔
         try:
             self.poll_interval_minutes = int(os.getenv("POLL_INTERVAL_MINUTES", 10))
             if self.poll_interval_minutes < 5 or self.poll_interval_minutes > 30:
-                logger.warning(f"ポーリング間隔が範囲外です (5〜30): {self.poll_interval_minutes}。10分に設定します。")
+                logger.warning(
+                    f"ポーリング間隔が範囲外です (5〜30): {self.poll_interval_minutes}。10分に設定します。"
+                )
                 self.poll_interval_minutes = 10
         except ValueError:
             logger.warning("POLL_INTERVAL_MINUTES が無効です。10分に設定します。")
@@ -108,8 +128,15 @@ class Config:
         self.bluesky_post_enabled = post_enabled_str in ("true", "1", "yes", "on")
 
         # 重複投稿防止オプション（デフォルト: False）
-        duplicate_prevention_str = os.getenv("PREVENT_DUPLICATE_POSTS", "false").strip().lower()
-        self.prevent_duplicate_posts = duplicate_prevention_str in ("true", "1", "yes", "on")
+        duplicate_prevention_str = (
+            os.getenv("PREVENT_DUPLICATE_POSTS", "false").strip().lower()
+        )
+        self.prevent_duplicate_posts = duplicate_prevention_str in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
 
         # デバッグモード（デフォルト: False）
         debug_mode_str = os.getenv("DEBUG_MODE", "false").strip().lower()
@@ -133,7 +160,7 @@ class Config:
             self.operation_mode = OperationMode.NORMAL
 
         # 後方互換性のため is_collect_mode を保持
-        self.is_collect_mode = (self.operation_mode == OperationMode.COLLECT)
+        self.is_collect_mode = self.operation_mode == OperationMode.COLLECT
 
         # 動作モードのログ出力
         self._log_operation_mode()
@@ -144,7 +171,10 @@ class Config:
         # ニコニコプラグイン導入有無を検出
         try:
             import importlib.util
-            self.niconico_plugin_exists = importlib.util.find_spec("plugins.niconico_plugin") is not None
+
+            self.niconico_plugin_exists = (
+                importlib.util.find_spec("plugins.niconico_plugin") is not None
+            )
         except Exception:
             self.niconico_plugin_exists = False
 
@@ -159,18 +189,26 @@ class Config:
                 logger.info("ニコニコ連携機能を無効化しました。")
         else:
             # バリデーション段階ではINFOのみ
-            logger.info("ニコニコプラグインが導入されていません。RSS取得のみで動作します。")
+            logger.info(
+                "ニコニコプラグインが導入されていません。RSS取得のみで動作します。"
+            )
 
         # ニコニコポーリング間隔（分）
         try:
-            self.niconico_poll_interval_minutes = int(os.getenv("NICONICO_POLL_INTERVAL", "10"))
-            if self.niconico_poll_interval_minutes < 5 or self.niconico_poll_interval_minutes > 60:
-                logger.warning(f"ニコニコポーリング間隔が範囲外です (5〜60): {self.niconico_poll_interval_minutes}。10分に設定します。")
+            self.niconico_poll_interval_minutes = int(
+                os.getenv("NICONICO_POLL_INTERVAL", "10")
+            )
+            if (
+                self.niconico_poll_interval_minutes < 5
+                or self.niconico_poll_interval_minutes > 60
+            ):
+                logger.warning(
+                    f"ニコニコポーリング間隔が範囲外です (5〜60): {self.niconico_poll_interval_minutes}。10分に設定します。"
+                )
                 self.niconico_poll_interval_minutes = 10
         except ValueError:
             logger.warning("NICONICO_POLL_INTERVAL が無効です。10分に設定します。")
             self.niconico_poll_interval_minutes = 10
-
 
     def _log_operation_mode(self):
         """現在の動作モードをログに出力"""
@@ -178,7 +216,7 @@ class Config:
             OperationMode.NORMAL: "通常モード（収集＋手動投稿）",
             OperationMode.AUTO_POST: "自動投稿モード（収集＋手動・自動投稿）",
             OperationMode.DRY_RUN: "ドライランモード（デバッグ用途・投稿機能オフ）",
-            OperationMode.COLLECT: "収集モード（RSS取得のみ・投稿機能オフ）"
+            OperationMode.COLLECT: "収集モード（RSS取得のみ・投稿機能オフ）",
         }
 
         # Bluesky投稿機能の状態を判定
@@ -193,17 +231,25 @@ class Config:
         debug_status = "有効" if self.debug_mode else "無効"
 
         logger.info("=" * 60)
-        logger.info(f"動作モード: {mode_descriptions.get(self.operation_mode, self.operation_mode)}")
+        logger.info(
+            f"動作モード: {mode_descriptions.get(self.operation_mode, self.operation_mode)}"
+        )
         logger.info(f"Bluesky投稿機能: {post_status}")
-        logger.info(f"重複投稿防止: {'有効' if self.prevent_duplicate_posts else '無効'}")
+        logger.info(
+            f"重複投稿防止: {'有効' if self.prevent_duplicate_posts else '無効'}"
+        )
         logger.info(f"デバッグモード: {debug_status}")
         logger.info("=" * 60)
 
         # モード別の詳細説明
         if self.operation_mode == OperationMode.COLLECT:
-            logger.warning("📦 RSS を取得して DB に保存するだけです。Bluesky への投稿は行いません。")
+            logger.warning(
+                "📦 RSS を取得して DB に保存するだけです。Bluesky への投稿は行いません。"
+            )
         elif self.operation_mode == OperationMode.DRY_RUN:
-            logger.warning("🧪 デバッグモードです。投稿のシミュレーションのみ行い、実際には投稿しません。")
+            logger.warning(
+                "🧪 デバッグモードです。投稿のシミュレーションのみ行い、実際には投稿しません。"
+            )
         elif self.operation_mode == OperationMode.NORMAL:
             logger.info("📝 投稿対象をGUIから設定し、手動で投稿を行ってください。")
         elif self.operation_mode == OperationMode.AUTO_POST:

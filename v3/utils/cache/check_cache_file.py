@@ -3,10 +3,11 @@
 """
 キャッシュファイルの確認
 """
+
 from pathlib import Path
 import json
 
-cache_file = Path('v3/data/youtube_video_detail_cache.json')
+cache_file = Path("v3/data/youtube_video_detail_cache.json")
 
 print("=" * 80)
 print("キャッシュファイル確認")
@@ -17,7 +18,7 @@ if cache_file.exists():
     print(f"✅ ファイルが存在します: {cache_file.absolute()}")
     print(f"   ファイルサイズ: {file_size:,} bytes ({file_size / 1024:.1f} KB)")
 
-    with open(cache_file, 'r', encoding='utf-8') as f:
+    with open(cache_file, "r", encoding="utf-8") as f:
         cache_data = json.load(f)
 
     print(f"\n📊 キャッシュ統計:")
@@ -26,8 +27,8 @@ if cache_file.exists():
     # サンプル表示
     print(f"\n📋 サンプル（最初の3件）:")
     for i, (video_id, entry) in enumerate(list(cache_data.items())[:3], 1):
-        title = entry.get('data', {}).get('snippet', {}).get('title', 'N/A')
-        timestamp = entry.get('timestamp', 0)
+        title = entry.get("data", {}).get("snippet", {}).get("title", "N/A")
+        timestamp = entry.get("timestamp", 0)
         print(f"   {i}. {video_id}")
         print(f"      タイトル: {title[:50]}")
         print(f"      キャッシュ時刻: {timestamp}")

@@ -13,7 +13,6 @@ import pytz
 from tzlocal import get_localzone
 
 # サムネイル関連ユーティリティ（ニコニコOGP/バックフィル）
-from thumbnails.niconico_ogp_backfill import backfill_niconico, fetch_thumbnail_url
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
@@ -39,7 +38,7 @@ def format_datetime_filter(iso_datetime_str, fmt="%Y-%m-%d %H:%M %Z"):
 
     try:
         # ISO 形式の文字列を UTC として解釈
-        dt_utc = datetime.fromisoformat(iso_datetime_str.replace('Z', '+00:00'))
+        dt_utc = datetime.fromisoformat(iso_datetime_str.replace("Z", "+00:00"))
 
         # 環境変数からタイムゾーンを取得（未指定ならシステムローカル）
         target_tz_name = os.getenv("TIMEZONE", "system")
@@ -48,38 +47,47 @@ def format_datetime_filter(iso_datetime_str, fmt="%Y-%m-%d %H:%M %Z"):
         if target_tz_name.lower() == "system":
             try:
                 target_tz = get_localzone()
-            except Exception as e:
-                util_logger.debug(f"format_datetime_filter: tzlocal システムタイムゾーン取得失敗 ({e})。 Asia/Tokyo を試行します。")
-                try:
-                    target_tz = pytz.timezone("Asia/Tokyo")
-                except Exception:
-                    util_logger.warning(f"format_datetime_filter: タイムゾーン解決に失敗しました。UTC にフォールバックします。")
+                if target_tz is None:
+                    util_logger.warning(
+                        "format_datetime_filter: tzlocal.get_localzone() が None を返しました。UTC にフォールバックします。"
+                    )
                     target_tz = timezone.utc
+            except Exception as e:
+                util_logger.warning(
+                    f"format_datetime_filter: tzlocal でシステムタイムゾーン取得エラー: {e}。UTC にフォールバックします。"
+                )
+                target_tz = timezone.utc
         else:
             try:
                 target_tz = pytz.timezone(target_tz_name)
             except pytz.UnknownTimeZoneError:
-                util_logger.warning(f"format_datetime_filter: 設定のタイムゾーン '{target_tz_name}' が不明です。UTC にフォールバックします。")
+                util_logger.warning(
+                    f"format_datetime_filter: 設定のタイムゾーン '{target_tz_name}' が不明です。UTC にフォールバックします。"
+                )
                 target_tz = timezone.utc
             except Exception as e:
-                util_logger.warning(f"format_datetime_filter: タイムゾーン解決エラー '{target_tz_name}': {e}。UTC にフォールバックします。")
+                util_logger.warning(
+                    f"format_datetime_filter: pytz.timezone でエラー: '{target_tz_name}': {e}。UTC にフォールバックします。"
+                )
                 target_tz = timezone.utc
 
         dt_localized = dt_utc.astimezone(target_tz)
         return dt_localized.strftime(fmt)
 
     except ValueError as e:
-        util_logger.error(f"format_datetime_filter: 日時文字列 '{iso_datetime_str}' のフォーマット '{fmt}' 変換エラー: {e}")
+        util_logger.error(
+            f"format_datetime_filter: 日時文字列 '{iso_datetime_str}' のフォーマット '{fmt}' 変換エラー: {e}"
+        )
         return iso_datetime_str
     except Exception as e:
-        util_logger.error(f"format_datetime_filter: 予期せぬエラー: '{iso_datetime_str}': {e}")
+        util_logger.error(
+            f"format_datetime_filter: 予期せぬエラー: '{iso_datetime_str}': {e}"
+        )
         return iso_datetime_str
 
 
 def retry_on_exception(
-    max_retries: int = 3,
-    wait_seconds: float = 2,
-    exceptions=(Exception,)
+    max_retries: int = 3, wait_seconds: float = 2, exceptions=(Exception,)
 ):
     """
     指定した例外が発生した場合にリトライするデコレータ
@@ -92,6 +100,7 @@ def retry_on_exception(
     Returns:
         デコレータ関数
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             last_exception = None
@@ -99,15 +108,20 @@ def retry_on_exception(
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:
-                    util_logger.warning(f"リトライ {attempt}/{max_retries}: 関数 {func.__name__} で例外が発生: {e}")
+                    util_logger.warning(
+                        f"リトライ {attempt}/{max_retries}: 関数 {func.__name__} で例外が発生: {e}"
+                    )
                     last_exception = e
                     import time
+
                     time.sleep(wait_seconds)
 
             if last_exception is not None:
                 raise last_exception
             return None
+
         return wrapper
+
     return decorator
 
 
@@ -121,5 +135,6 @@ def is_valid_url(url):
     Returns:
         URL の場合は True、そうでなければ False
     """
-    return isinstance(url, str) and (url.startswith("http://") or url.startswith("https://"))
-
+    return isinstance(url, str) and (
+        url.startswith("http://") or url.startswith("https://")
+    )

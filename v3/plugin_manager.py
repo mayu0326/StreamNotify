@@ -6,7 +6,6 @@ Stream notify on Bluesky - プラグインマネージャー
 プラグインの動的な読み込み、管理、実行を担当します。
 """
 
-import os
 import sys
 import logging
 import importlib.util
@@ -58,7 +57,9 @@ class PluginManager:
 
         return plugins
 
-    def load_plugin(self, plugin_name: str, plugin_path: str) -> Optional[NotificationPlugin]:
+    def load_plugin(
+        self, plugin_name: str, plugin_path: str
+    ) -> Optional[NotificationPlugin]:
         """
         プラグインを動的に読み込む
 
@@ -70,53 +71,61 @@ class PluginManager:
             NotificationPlugin: ロードされたプラグイン、失敗時は None
         """
         try:
-                # すでに同名プラグインがロード済みなら何もしない（重複ログ防止）
-                if plugin_name in self.loaded_plugins:
-                    return self.loaded_plugins[plugin_name]
+            # すでに同名プラグインがロード済みなら何もしない（重複ログ防止）
+            if plugin_name in self.loaded_plugins:
+                return self.loaded_plugins[plugin_name]
 
-                # モジュールをダイナミックロード
-                spec = importlib.util.spec_from_file_location(plugin_name, plugin_path)
-                if spec is None or spec.loader is None:
-                    logger.error(f"❌ プラグイン {plugin_name} のロード失敗: spec が None")
-                    return None
+            # モジュールをダイナミックロード
+            spec = importlib.util.spec_from_file_location(plugin_name, plugin_path)
+            if spec is None or spec.loader is None:
+                logger.error(f"❌ プラグイン {plugin_name} のロード失敗: spec が None")
+                return None
 
-                module = importlib.util.module_from_spec(spec)
-                # 完全なモジュールパスで sys.modules に登録（plugins.* パターンに対応）
-                full_module_name = f"plugins.{plugin_name}"
-                sys.modules[full_module_name] = module
-                sys.modules[plugin_name] = module  # 短い名前でもアクセス可能に
-                spec.loader.exec_module(module)
+            module = importlib.util.module_from_spec(spec)
+            # 完全なモジュールパスで sys.modules に登録（plugins.* パターンに対応）
+            full_module_name = f"plugins.{plugin_name}"
+            sys.modules[full_module_name] = module
+            sys.modules[plugin_name] = module  # 短い名前でもアクセス可能に
+            spec.loader.exec_module(module)
 
-                # NotificationPlugin を実装しているクラスを探す
-                # importされたクラスではなく、このモジュール内で定義されたクラスのみを対象
-                plugin_class = None
-                for attr_name in dir(module):
-                    attr = getattr(module, attr_name)
-                    if (isinstance(attr, type) and
-                        issubclass(attr, NotificationPlugin) and
-                        attr is not NotificationPlugin and
-                        attr.__module__ == plugin_name):  # このモジュール内で定義されたクラスのみ
-                        if logger.isEnabledFor(logging.DEBUG):
-                            logger.debug(f"🔍 発見したクラス: {attr.__name__} in {plugin_name}")
-                        plugin_class = attr
-                        break
+            # NotificationPlugin を実装しているクラスを探す
+            # importされたクラスではなく、このモジュール内で定義されたクラスのみを対象
+            plugin_class = None
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (
+                    isinstance(attr, type)
+                    and issubclass(attr, NotificationPlugin)
+                    and attr is not NotificationPlugin
+                    and attr.__module__ == plugin_name
+                ):  # このモジュール内で定義されたクラスのみ
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(
+                            f"🔍 発見したクラス: {attr.__name__} in {plugin_name}"
+                        )
+                    plugin_class = attr
+                    break
 
-                if plugin_class is None:
-                    logger.error(f"❌ プラグイン {plugin_name}: NotificationPlugin を実装したクラスが見つかりません")
-                    return None
+            if plugin_class is None:
+                logger.error(
+                    f"❌ プラグイン {plugin_name}: NotificationPlugin を実装したクラスが見つかりません"
+                )
+                return None
 
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"🔍 インスタンス生成: {plugin_class.__name__}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"🔍 インスタンス生成: {plugin_class.__name__}")
 
-                # すでに同じクラスのインスタンスがロード済みなら再利用（シングルトン対応）
-                # 既存インスタンスがあっても、必ず新しいインスタンスを生成し、
-                # プラグイン名ごとに登録・ログ出力する
-                plugin = plugin_class()
-                self.loaded_plugins[plugin_name] = plugin
-                return plugin
+            # すでに同じクラスのインスタンスがロード済みなら再利用（シングルトン対応）
+            # 既存インスタンスがあっても、必ず新しいインスタンスを生成し、
+            # プラグイン名ごとに登録・ログ出力する
+            plugin = plugin_class()
+            self.loaded_plugins[plugin_name] = plugin
+            return plugin
 
         except Exception as e:
-            logger.error(f"❌ プラグイン {plugin_name} のロード失敗: {e}", exc_info=True)
+            logger.error(
+                f"❌ プラグイン {plugin_name} のロード失敗: {e}", exc_info=True
+            )
             return None
 
     def load_plugins_from_directory(self) -> int:
@@ -161,13 +170,17 @@ class PluginManager:
             if plugin.is_available():
                 self.enabled_plugins[plugin_name] = plugin
                 plugin.on_enable()
-                logger.info(f"✅ プラグイン有効化完了: {plugin.get_name()} v{plugin.get_version()}")
+                logger.info(
+                    f"✅ プラグイン有効化完了: {plugin.get_name()} v{plugin.get_version()}"
+                )
                 return True
             else:
                 logger.warning(f"⚠️  プラグイン {plugin_name} は利用不可です")
                 return False
         except Exception as e:
-            logger.error(f"❌ プラグイン {plugin_name} の有効化失敗: {e}", exc_info=True)
+            logger.error(
+                f"❌ プラグイン {plugin_name} の有効化失敗: {e}", exc_info=True
+            )
             return False
 
     def disable_plugin(self, plugin_name: str) -> bool:
@@ -190,7 +203,9 @@ class PluginManager:
             plugin.on_disable()
             return True
         except Exception as e:
-            logger.error(f"❌ プラグイン {plugin_name} の無効化エラー: {e}", exc_info=True)
+            logger.error(
+                f"❌ プラグイン {plugin_name} の無効化エラー: {e}", exc_info=True
+            )
             return False
 
     def get_enabled_plugins(self) -> Dict[str, NotificationPlugin]:
@@ -221,9 +236,13 @@ class PluginManager:
         Returns:
             NotificationPlugin: プラグイン（見つからない場合は None）
         """
-        return self.enabled_plugins.get(plugin_name) or self.loaded_plugins.get(plugin_name)
+        return self.enabled_plugins.get(plugin_name) or self.loaded_plugins.get(
+            plugin_name
+        )
 
-    def post_video_with_all_enabled(self, video: dict, dry_run: bool = False) -> Dict[str, bool]:
+    def post_video_with_all_enabled(
+        self, video: dict, dry_run: bool = False
+    ) -> Dict[str, bool]:
         """
         すべての有効なプラグインで動画をポスト
 
@@ -239,7 +258,7 @@ class PluginManager:
         for plugin_name, plugin in self.enabled_plugins.items():
             try:
                 # ★ dry_run フラグをプラグインに設定
-                if hasattr(plugin, 'set_dry_run'):
+                if hasattr(plugin, "set_dry_run"):
                     plugin.set_dry_run(dry_run)
 
                 success = plugin.post_video(video)
@@ -252,9 +271,13 @@ class PluginManager:
                 else:
                     # False の場合は単なる「未処理」（スキップ・既存）として認識
                     # post_error.log には記録しない
-                    post_logger.debug(f"{plugin_name}: ℹ️ スキップまたは既存 (video_id={video_id})")
+                    post_logger.debug(
+                        f"{plugin_name}: ℹ️ スキップまたは既存 (video_id={video_id})"
+                    )
             except Exception as e:
-                post_error_logger.error(f"❌ プラグイン {plugin_name} でのポスト失敗: {e}", exc_info=True)
+                post_error_logger.error(
+                    f"❌ プラグイン {plugin_name} でのポスト失敗: {e}", exc_info=True
+                )
                 results[plugin_name] = False
 
         return results

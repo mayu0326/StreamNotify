@@ -17,10 +17,8 @@ thumbnail_urlから画像を再ダウンロードして保存します。
     --verbose   : 詳細ログを表示
 """
 
-
 import sys
 import logging
-import os
 from pathlib import Path
 
 # v3ルートをパスに追加
@@ -36,6 +34,7 @@ from .niconico_ogp_utils import get_niconico_ogp_url
 # ThumbnailsLogger（logging_plugin.pyで設定管理）
 logger = logging.getLogger("ThumbnailsLogger")
 
+
 def redownload_missing_images(dry_run: bool = False):
     """
     画像が設定されていない動画のサムネイルを再ダウンロード
@@ -48,7 +47,7 @@ def redownload_missing_images(dry_run: bool = False):
 
     # 画像なし動画を取得
     videos = db.get_videos_without_image()
-    
+
     if not videos:
         logger.info("✅ すべての動画に画像が設定されています")
         return
@@ -74,7 +73,7 @@ def redownload_missing_images(dry_run: bool = False):
             if best_url:
                 thumbnail_url = best_url
                 logger.info(f"✅ YouTube サムネイル再取得: {video_id}")
-        
+
         # ニコニコはOGPから最新URLを再取得して利用
         elif source == "niconico":
             ogp_url = get_niconico_ogp_url(video_id)
@@ -96,17 +95,15 @@ def redownload_missing_images(dry_run: bool = False):
             thumbnail_url=thumbnail_url,
             site=source.capitalize(),
             video_id=video_id,
-            mode="autopost"
+            mode="autopost",
         )
 
         if filename:
             # データベースを更新
             success = db.update_image_info(
-                video_id=video_id,
-                image_mode="autopost",
-                image_filename=filename
+                video_id=video_id, image_mode="autopost", image_filename=filename
             )
-            
+
             if success:
                 print(f"  ✅ 成功: {filename}\n")
                 success_count += 1
@@ -140,16 +137,11 @@ def main():
     parser.add_argument(
         "--execute",
         action="store_true",
-        help="実際にダウンロードを実行（指定しない場合はDRY RUN）"
+        help="実際にダウンロードを実行（指定しない場合はDRY RUN）",
     )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="詳細ログを表示"
-    )
+    parser.add_argument("--verbose", action="store_true", help="詳細ログを表示")
 
     args = parser.parse_args()
-
 
     # --verbose指定時はDEBUGを優先
     if args.verbose:
@@ -158,10 +150,9 @@ def main():
     dry_run = not args.execute
 
     if dry_run:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("DRY RUN モード - 変更は行われません")
-        print("="*60 + "\n")
-    
+        print("=" * 60 + "\n")
 
     try:
         redownload_missing_images(dry_run=dry_run)
@@ -175,4 +166,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

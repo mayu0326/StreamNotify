@@ -20,19 +20,14 @@ Jinja2ベースのテンプレート編集ダイアログ（customtkinter）。
 
 import customtkinter as ctk
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, filedialog
+from tkinter import messagebox
 import logging
-from typing import Dict, Any, Optional, Callable
-from pathlib import Path
-import sys
+from typing import Optional, Callable
 
 # v3 テンプレートユーティリティをインポート
 from template_utils import (
-    TEMPLATE_ARGS,
-    TEMPLATE_VAR_BLACKLIST,
     get_sample_context,
     preview_template,
-    save_template_file,
     get_template_args_for_dialog,
 )
 
@@ -81,7 +76,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
         template_type: str,
         initial_text: str = "",
         on_save: Optional[Callable[[str, str], None]] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(master, **kwargs)
 
@@ -119,7 +114,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             toolbar,
             text=f"📄 種別: {self.template_type}",
             font=TITLE_FONT,
-            text_color="#FFFFFF"
+            text_color="#FFFFFF",
         )
         type_label.pack(side="left", padx=10, pady=5)
 
@@ -135,7 +130,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             width=120,
             height=30,
             fg_color="#0084FF",
-            hover_color="#0066CC"
+            hover_color="#0066CC",
         )
         refresh_btn.pack(side="left", padx=5)
 
@@ -147,7 +142,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             width=100,
             height=30,
             fg_color="#00AA00",
-            hover_color="#008800"
+            hover_color="#008800",
         )
         save_btn.pack(side="left", padx=5)
 
@@ -159,7 +154,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             width=100,
             height=30,
             fg_color="#AA0000",
-            hover_color="#880000"
+            hover_color="#880000",
         )
         close_btn.pack(side="left", padx=5)
 
@@ -176,7 +171,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             left_frame,
             text="📝 テンプレートテキスト",
             font=("Yu Gothic UI", 10, "bold"),
-            text_color="#FFFFFF"
+            text_color="#FFFFFF",
         )
         editor_label.pack(anchor="w", pady=(0, 5))
 
@@ -195,7 +190,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             bg="#1E1E1E",
             fg="#D4D4D4",
             insertbackground="#FFFFFF",
-            selectbackground="#0078D7"
+            selectbackground="#0078D7",
         )
         self.text_editor.pack(side="left", fill="both", expand=True)
         self.text_editor.bind("<KeyRelease>", self._on_text_changed)
@@ -207,7 +202,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             left_frame,
             text="🔧 利用可能な変数（クリックで挿入）",
             font=("Yu Gothic UI", 10, "bold"),
-            text_color="#FFFFFF"
+            text_color="#FFFFFF",
         )
         args_label.pack(anchor="w", pady=(10, 5))
 
@@ -216,7 +211,9 @@ class TemplateEditorDialog(ctk.CTkToplevel):
         args_frame.pack(fill="x", pady=(0, 5))
 
         # 変数ボタンを作成
-        args_with_dialog = get_template_args_for_dialog(self.template_type, blacklist=True)
+        args_with_dialog = get_template_args_for_dialog(
+            self.template_type, blacklist=True
+        )
         if args_with_dialog:
             for display_name, var_key in args_with_dialog:
                 self._create_arg_button(args_frame, display_name, var_key)
@@ -225,7 +222,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
                 args_frame,
                 text="利用可能な変数がありません",
                 font=BUTTON_FONT,
-                text_color="#888888"
+                text_color="#888888",
             )
             no_args_label.pack(pady=10)
 
@@ -237,7 +234,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             right_frame,
             text="👁️ プレビュー",
             font=("Yu Gothic UI", 10, "bold"),
-            text_color="#FFFFFF"
+            text_color="#FFFFFF",
         )
         preview_label.pack(anchor="w", pady=(0, 5))
 
@@ -255,7 +252,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             bg="#0D1117",
             fg="#C9D1D9",
             state="disabled",
-            selectbackground="#238636"
+            selectbackground="#238636",
         )
         self.preview_text.pack(side="left", fill="both", expand=True)
         preview_scrollbar.configure(command=self.preview_text.yview)
@@ -268,12 +265,13 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             status_frame,
             text="✅ 準備完了",
             font=("Yu Gothic UI", 9),
-            text_color="#00AA00"
+            text_color="#00AA00",
         )
         self.status_label.pack(anchor="w", padx=10, pady=5)
 
     def _create_arg_button(self, parent, display_name: str, var_key: str):
         """テンプレート引数ボタンを作成"""
+
         def on_click():
             # カーソル位置に {{ var_key }} を挿入
             cursor_pos = self.text_editor.index(tk.INSERT)
@@ -290,7 +288,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
             height=28,
             fg_color="#0078D7",
             hover_color="#005A9E",
-            corner_radius=4
+            corner_radius=4,
         )
         btn.pack(side="left", padx=3, pady=3)
 
@@ -314,9 +312,7 @@ class TemplateEditorDialog(ctk.CTkToplevel):
 
         # プレビューレンダリング実行
         success, result = preview_template(
-            self.template_type,
-            template_text,
-            event_context=self.sample_context
+            self.template_type, template_text, event_context=self.sample_context
         )
 
         if success:
@@ -356,15 +352,13 @@ class TemplateEditorDialog(ctk.CTkToplevel):
 
         # 最終検証
         success, result = preview_template(
-            self.template_type,
-            template_text,
-            event_context=self.sample_context
+            self.template_type, template_text, event_context=self.sample_context
         )
 
         if not success:
             response = messagebox.askyesno(
                 "確認",
-                f"テンプレートに問題があります:\n{result}\n\nそれでも保存しますか？"
+                f"テンプレートに問題があります:\n{result}\n\nそれでも保存しますか？",
             )
             if not response:
                 return
@@ -377,7 +371,9 @@ class TemplateEditorDialog(ctk.CTkToplevel):
                 self.destroy()
             except Exception as e:
                 logger.error(f"❌ テンプレート保存エラー: {e}")
-                messagebox.showerror("エラー", f"保存中にエラーが発生しました:\n{str(e)}")
+                messagebox.showerror(
+                    "エラー", f"保存中にエラーが発生しました:\n{str(e)}"
+                )
         else:
             messagebox.showinfo("成功", "テンプレートを保存しました。")
             self.destroy()
@@ -407,7 +403,7 @@ if __name__ == "__main__":
             master=root,
             template_type="youtube_new_video",
             initial_text="🎬 {{ channel_name }}\n\n📹 {{ title }}\n\n{{ video_url }}",
-            on_save=test_on_save
+            on_save=test_on_save,
         )
 
     test_btn = ctk.CTkButton(
@@ -415,9 +411,8 @@ if __name__ == "__main__":
         text="📝 テンプレート編集ダイアログを開く",
         command=open_editor,
         font=("Yu Gothic UI", 12),
-        height=40
+        height=40,
     )
     test_btn.pack(padx=20, pady=20, fill="x")
 
     root.mainloop()
-

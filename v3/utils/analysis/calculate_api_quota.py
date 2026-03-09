@@ -5,6 +5,7 @@ YouTube Live 分類ロジック - API クォータ計算
 
 本番 DB の全動画に対してロジックを適用した場合の API コスト見積もり
 """
+
 import sys
 import sqlite3
 from pathlib import Path
@@ -17,9 +18,9 @@ def main():
     """メイン処理"""
     db_path = Path(__file__).parent.parent.parent / "v3" / "data" / "video_list.db"
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("📊 YouTube Data API クォータ計算")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     if not db_path.exists():
         print(f"❌ DB が見つかりません: {db_path}")
@@ -35,11 +36,15 @@ def main():
         total_videos = cursor.fetchone()[0]
 
         # プラットフォーム別統計
-        cursor.execute("SELECT source, COUNT(*) as count FROM videos GROUP BY source ORDER BY count DESC")
+        cursor.execute(
+            "SELECT source, COUNT(*) as count FROM videos GROUP BY source ORDER BY count DESC"
+        )
         platform_stats = cursor.fetchall()
 
         # YouTube 動画のみカウント
-        cursor.execute("SELECT COUNT(*) FROM videos WHERE source LIKE '%youtube%' OR source = 'YouTube'")
+        cursor.execute(
+            "SELECT COUNT(*) FROM videos WHERE source LIKE '%youtube%' OR source = 'YouTube'"
+        )
         youtube_count = cursor.fetchone()[0]
 
         print("【DB 統計情報】\n")
@@ -74,7 +79,7 @@ def main():
         # 合計
         total_cost = videos_list_cost + channels_cost
         daily_quota = 10000
-        usage_rate = (total_cost / daily_quota * 100)
+        usage_rate = total_cost / daily_quota * 100
 
         print("【合計 API コスト】\n")
         print(f"  videos.list: {videos_list_cost} ユニット")
@@ -110,15 +115,19 @@ def main():
             print("   クォータの 50%-80% のため、1日1回の実行が安全です")
         else:
             print("❌ 【警告】 複数回実行は不可")
-            print("   クォータの 80% 以上のため、複数回実行すると超過の可能性があります")
+            print(
+                "   クォータの 80% 以上のため、複数回実行すると超過の可能性があります"
+            )
         print()
 
         # API 効率分析
         print("【API 効率分析】\n")
-        print(f"効率: {youtube_count} 動画 / {total_cost} ユニット = {youtube_count/total_cost:.2f} 動画/ユニット")
+        print(
+            f"効率: {youtube_count} 動画 / {total_cost} ユニット = {youtube_count/total_cost:.2f} 動画/ユニット"
+        )
         print()
 
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         return 0
 

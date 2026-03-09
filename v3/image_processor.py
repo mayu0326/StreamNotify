@@ -19,17 +19,20 @@ post_logger = logging.getLogger("PostLogger")
 
 # 画像処理の設定
 _IMAGE_CONFIG = {
-    "quality_initial": 90,     # 初期JPEG品質
-    "size_threshold": 900 * 1024,   # ファイルサイズ閾値（900KB）
-    "size_limit": 1024 * 1024,      # ファイルサイズ上限（1MB）
+    "quality_initial": 90,  # 初期JPEG品質
+    "size_threshold": 900 * 1024,  # ファイルサイズ閾値（900KB）
+    "size_limit": 1024 * 1024,  # ファイルサイズ上限（1MB）
 }
 
 # Blueskyの推奨画像サイズ（アスペクト比別）
 # 参考: https://docs.bsky.app/docs/advanced-guides/image-handling
 _RECOMMENDED_SIZES = {
-    "portrait": (800, 1000),     # 縦長 (4:5) - アスペクト比 < 0.8
-    "square": (1000, 1000),      # 正方形 (1:1) - 0.8 ≤ アスペクト比 ≤ 1.25
-    "landscape": (1200, 627),    # 横長 (16:9) - アスペクト比 > 1.25 ★ 1200x627は1000x563の代替案
+    "portrait": (800, 1000),  # 縦長 (4:5) - アスペクト比 < 0.8
+    "square": (1000, 1000),  # 正方形 (1:1) - 0.8 ≤ アスペクト比 ≤ 1.25
+    "landscape": (
+        1200,
+        627,
+    ),  # 横長 (16:9) - アスペクト比 > 1.25 ★ 1200x627は1000x563の代替案
 }
 
 
@@ -66,7 +69,7 @@ def resize_image(file_path: str, config: dict = None) -> bytes:
             return None
 
         # ========== 元画像の情報取得 ==========
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             original_data = f.read()
         original_size_bytes = len(original_data)
 
@@ -76,21 +79,29 @@ def resize_image(file_path: str, config: dict = None) -> bytes:
 
         aspect_ratio = original_width / original_height if original_height > 0 else 1.0
 
-        post_logger.debug(f"📏 元画像: {original_width}×{original_height} ({original_format}, {original_size_bytes / 1024:.1f}KB, アスペクト比: {aspect_ratio:.2f})")
+        post_logger.debug(
+            f"📏 元画像: {original_width}×{original_height} ({original_format}, {original_size_bytes / 1024:.1f}KB, アスペクト比: {aspect_ratio:.2f})"
+        )
 
         # ========== アスペクト比に応じたリサイズ処理 ==========
         if aspect_ratio < 0.8:
             # 縦長画像 (4:5)
             target_w, target_h = _RECOMMENDED_SIZES["portrait"]
-            post_logger.debug(f"🔄 縦長画像（アスペクト比 {aspect_ratio:.2f}）: {target_w}×{target_h}px にリサイズ")
+            post_logger.debug(
+                f"🔄 縦長画像（アスペクト比 {aspect_ratio:.2f}）: {target_w}×{target_h}px にリサイズ"
+            )
         elif aspect_ratio <= 1.25:
             # 正方形〜やや横長 (1:1)
             target_w, target_h = _RECOMMENDED_SIZES["square"]
-            post_logger.debug(f"🔄 正方形/やや横長（アスペクト比 {aspect_ratio:.2f}）: {target_w}×{target_h}px にリサイズ")
+            post_logger.debug(
+                f"🔄 正方形/やや横長（アスペクト比 {aspect_ratio:.2f}）: {target_w}×{target_h}px にリサイズ"
+            )
         else:
             # 横長画像 (16:9)
             target_w, target_h = _RECOMMENDED_SIZES["landscape"]
-            post_logger.debug(f"🔄 横長画像（アスペクト比 {aspect_ratio:.2f}）: {target_w}×{target_h}px にリサイズ")
+            post_logger.debug(
+                f"🔄 横長画像（アスペクト比 {aspect_ratio:.2f}）: {target_w}×{target_h}px にリサイズ"
+            )
 
         resized_img = _resize_to_target(img, target_w, target_h)
 
@@ -100,23 +111,31 @@ def resize_image(file_path: str, config: dict = None) -> bytes:
         # ========== JPEG 出力（初期品質） ==========
         jpeg_data = _encode_jpeg(resized_img, config["quality_initial"])
         current_size_bytes = len(jpeg_data)
-        post_logger.debug(f"   JPEG品質{config['quality_initial']}: {current_size_bytes / 1024:.1f}KB")
+        post_logger.debug(
+            f"   JPEG品質{config['quality_initial']}: {current_size_bytes / 1024:.1f}KB"
+        )
 
         # ========== ファイルサイズチェック＆品質調整 ==========
         if current_size_bytes > config["size_threshold"]:
             # 閾値超過 → 品質を段階的に下げて再圧縮
-            post_logger.info(f"⚠️ ファイルサイズが {config['size_threshold'] / 1024:.0f}KB を超過: {current_size_bytes / 1024:.1f}KB")
+            post_logger.info(
+                f"⚠️ ファイルサイズが {config['size_threshold'] / 1024:.0f}KB を超過: {current_size_bytes / 1024:.1f}KB"
+            )
             jpeg_data = _optimize_image_quality(resized_img, config)
 
             if jpeg_data is None:
-                post_logger.error(f"❌ ファイルサイズの最適化に失敗しました（{config['size_limit']}バイト超過）")
+                post_logger.error(
+                    f"❌ ファイルサイズの最適化に失敗しました（{config['size_limit']}バイト超過）"
+                )
                 return None
 
             current_size_bytes = len(jpeg_data)
 
         # ========== 最終チェック ==========
         if current_size_bytes > config["size_limit"]:
-            post_logger.error(f"❌ 最終的なファイルサイズが上限を超えています: {current_size_bytes / 1024:.1f}KB")
+            post_logger.error(
+                f"❌ 最終的なファイルサイズが上限を超えています: {current_size_bytes / 1024:.1f}KB"
+            )
             return None
 
         # ========== ログ出力 ==========
@@ -251,16 +270,16 @@ def _encode_jpeg(img, quality: int) -> bytes:
         JPEG バイナリ
     """
     # RGBに変換（PNG等のアルファチャネルを削除）
-    if img.mode in ('RGBA', 'LA', 'P'):
+    if img.mode in ("RGBA", "LA", "P"):
         # 白背景で合成
-        background = Image.new('RGB', img.size, (255, 255, 255))
-        background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
         img = background
-    elif img.mode != 'RGB':
-        img = img.convert('RGB')
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
 
     buffer = io.BytesIO()
-    img.save(buffer, format='JPEG', quality=quality, optimize=True)
+    img.save(buffer, format="JPEG", quality=quality, optimize=True)
     return buffer.getvalue()
 
 
@@ -285,11 +304,15 @@ def _optimize_image_quality(img, config: dict) -> bytes:
         logger.debug(f"   JPEG品質{quality}: {size_bytes / 1024:.1f}KB")
 
         if size_bytes <= config["size_limit"]:
-            logger.info(f"✅ 品質{quality}で {config['size_limit'] / 1024:.0f}KB 以下に圧縮: {size_bytes / 1024:.1f}KB")
+            logger.info(
+                f"✅ 品質{quality}で {config['size_limit'] / 1024:.0f}KB 以下に圧縮: {size_bytes / 1024:.1f}KB"
+            )
             return jpeg_data
 
     # すべての品質レベルでも上限を超えた
-    logger.error(f"❌ 品質{quality_levels[-1]}でも {config['size_limit'] / 1024:.0f}KB を超えています")
+    logger.error(
+        f"❌ 品質{quality_levels[-1]}でも {config['size_limit'] / 1024:.0f}KB を超えています"
+    )
     return None
 
 
@@ -300,14 +323,21 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     parser = argparse.ArgumentParser(description="画像処理モジュール テスト")
     parser.add_argument("image_file", help="入力画像ファイルパス")
     parser.add_argument("--output", "-o", help="出力ファイルパス（指定時のみ保存）")
-    parser.add_argument("--max-long-side", type=int, default=1000, help="長辺の最大値（デフォルト: 1000）")
-    parser.add_argument("--quality", type=int, default=90, help="初期JPEG品質（デフォルト: 90）")
+    parser.add_argument(
+        "--max-long-side",
+        type=int,
+        default=1000,
+        help="長辺の最大値（デフォルト: 1000）",
+    )
+    parser.add_argument(
+        "--quality", type=int, default=90, help="初期JPEG品質（デフォルト: 90）"
+    )
 
     args = parser.parse_args()
 
@@ -323,7 +353,7 @@ if __name__ == "__main__":
         logger.info(f"処理成功: {len(result)} バイト")
 
         if args.output:
-            with open(args.output, 'wb') as f:
+            with open(args.output, "wb") as f:
                 f.write(result)
             logger.info(f"出力ファイル: {args.output}")
     else:

@@ -47,7 +47,7 @@ class Database:
         Args:
             db_path: データベースファイルのパス
         """
-        if hasattr(self, '_initialized') and self._initialized:
+        if hasattr(self, "_initialized") and self._initialized:
             return
         self.db_path = db_path
         self.is_first_run = not Path(db_path).exists()
@@ -70,7 +70,9 @@ class Database:
             正規化されたcontent_type（デフォルト値は "video"）
         """
         if content_type not in VALID_CONTENT_TYPES:
-            logger.warning(f"⚠️ 不正な content_type: '{content_type}' → デフォルト値 'video' に置き換えます")
+            logger.warning(
+                f"⚠️ 不正な content_type: '{content_type}' → デフォルト値 'video' に置き換えます"
+            )
             return "video"
         return content_type
 
@@ -85,12 +87,16 @@ class Database:
             正規化された live_status
         """
         if live_status not in VALID_LIVE_STATUSES:
-            logger.warning(f"⚠️ 不正な live_status: '{live_status}' → None に置き換えます")
+            logger.warning(
+                f"⚠️ 不正な live_status: '{live_status}' → None に置き換えます"
+            )
             return None
 
         # content_type="video" で live_status が null 以外の場合は警告
         if content_type == "video" and live_status is not None:
-            logger.warning(f"⚠️ content_type='video' で live_status='{live_status}' が設定されています。content_type != 'live' の場合は live_status=None を推奨します")
+            logger.warning(
+                f"⚠️ content_type='video' で live_status='{live_status}' が設定されています。content_type != 'live' の場合は live_status=None を推奨します"
+            )
 
         return live_status
 
@@ -132,7 +138,6 @@ class Database:
             conn.commit()
             conn.close()
 
-
         except Exception as e:
             logger.error(f"DB 初期化エラー: {e}")
             raise
@@ -161,7 +166,19 @@ class Database:
             logger.error(f"スキーママイグレーションエラー: {e}")
             raise
 
-    def insert_video(self, video_id, title, video_url, published_at, channel_name="", thumbnail_url="", content_type="video", live_status=None, is_premiere=False, source="youtube"):
+    def insert_video(
+        self,
+        video_id,
+        title,
+        video_url,
+        published_at,
+        channel_name="",
+        thumbnail_url="",
+        content_type="video",
+        live_status=None,
+        is_premiere=False,
+        source="youtube",
+    ):
         """
         動画情報を挿入（リトライ付き、YouTube重複排除対応）
 
@@ -190,10 +207,13 @@ class Database:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM videos
                     WHERE source='youtube' AND title=? AND channel_name=?
-                """, (title, channel_name))
+                """,
+                    (title, channel_name),
+                )
 
                 existing_videos = [dict(row) for row in cursor.fetchall()]
                 conn.close()
@@ -201,30 +221,36 @@ class Database:
                 if existing_videos:
                     # 新しい動画の優先度と既存動画の優先度を比較
                     new_video = {
-                        'video_id': video_id,
-                        'content_type': content_type,
-                        'live_status': live_status,
-                        'is_premiere': 1 if is_premiere else 0,
-                        'published_at': published_at
+                        "video_id": video_id,
+                        "content_type": content_type,
+                        "live_status": live_status,
+                        "is_premiere": 1 if is_premiere else 0,
+                        "published_at": published_at,
                     }
 
                     if not should_keep_video(new_video, existing_videos):
-                        logger.debug(f"⏭️ YouTube重複排除: より優先度の高い動画が既に登録されています（{title}）")
+                        logger.debug(
+                            f"⏭️ YouTube重複排除: より優先度の高い動画が既に登録されています（{title}）"
+                        )
                         return False
 
                     # 優先度が高い場合は既存の低優先度動画を削除
-                    existing_priority = max(get_video_priority(v) for v in existing_videos)
+                    existing_priority = max(
+                        get_video_priority(v) for v in existing_videos
+                    )
                     new_priority = get_video_priority(new_video)
 
                     if new_priority > existing_priority:
                         # 既存動画から低優先度のものを削除
                         ids_to_delete = [
-                            v['id'] for v in existing_videos
+                            v["id"]
+                            for v in existing_videos
                             if get_video_priority(v) < new_priority
                         ]
                         if ids_to_delete:
                             try:
                                 from deleted_video_cache import get_deleted_video_cache
+
                                 deleted_cache = get_deleted_video_cache()
                             except ImportError:
                                 deleted_cache = None
@@ -233,21 +259,31 @@ class Database:
                             cursor = conn.cursor()
                             for del_id in ids_to_delete:
                                 # video_id を取得してから削除
-                                cursor.execute("SELECT video_id FROM videos WHERE id=?", (del_id,))
+                                cursor.execute(
+                                    "SELECT video_id FROM videos WHERE id=?", (del_id,)
+                                )
                                 row = cursor.fetchone()
                                 if row:
                                     deleted_video_id = row[0]
 
                                     # DB から削除
-                                    cursor.execute("DELETE FROM videos WHERE id=?", (del_id,))
-                                    logger.debug(f"✅ 削除: 優先度が低い動画 ID={del_id}, video_id={deleted_video_id}")
+                                    cursor.execute(
+                                        "DELETE FROM videos WHERE id=?", (del_id,)
+                                    )
+                                    logger.debug(
+                                        f"✅ 削除: 優先度が低い動画 ID={del_id}, video_id={deleted_video_id}"
+                                    )
 
                                     # deleted_videos.json に登録
                                     if deleted_cache:
                                         try:
-                                            deleted_cache.add_deleted_video(deleted_video_id, source=source)
+                                            deleted_cache.add_deleted_video(
+                                                deleted_video_id, source=source
+                                            )
                                         except Exception as e:
-                                            logger.warning(f"削除動画キャッシュへの登録失敗: {e}")
+                                            logger.warning(
+                                                f"削除動画キャッシュへの登録失敗: {e}"
+                                            )
 
                             conn.commit()
                             conn.close()
@@ -266,10 +302,24 @@ class Database:
                 conn = self._get_connection()
                 cursor = conn.cursor()
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO videos (video_id, title, video_url, published_at, channel_name, thumbnail_url, content_type, live_status, is_premiere, source)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (video_id, title, video_url, published_at, channel_name, thumbnail_url, content_type, live_status, 1 if is_premiere else 0, source))
+                """,
+                    (
+                        video_id,
+                        title,
+                        video_url,
+                        published_at,
+                        channel_name,
+                        thumbnail_url,
+                        content_type,
+                        live_status,
+                        1 if is_premiere else 0,
+                        source,
+                    ),
+                )
 
                 conn.commit()
                 conn.close()
@@ -284,7 +334,9 @@ class Database:
             except sqlite3.OperationalError as e:
                 conn.close()
                 if "locked" in str(e).lower() and attempt < DB_RETRY_MAX - 1:
-                    logger.debug(f"DB ロック中。{attempt + 1}/{DB_RETRY_MAX} リトライします...")
+                    logger.debug(
+                        f"DB ロック中。{attempt + 1}/{DB_RETRY_MAX} リトライします..."
+                    )
                     time.sleep(0.5)
                     continue
                 else:
@@ -383,7 +435,7 @@ class Database:
                 SELECT * FROM videos WHERE live_status = ?
                 ORDER BY published_at DESC
                 """,
-                (live_status,)
+                (live_status,),
             )
             videos = [dict(row) for row in cursor.fetchall()]
             conn.close()
@@ -399,13 +451,18 @@ class Database:
             cursor = conn.cursor()
 
             posted_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos SET posted_to_bluesky = 1, posted_at = ? WHERE video_id = ?
-            """, (posted_at, video_id))
+            """,
+                (posted_at, video_id),
+            )
 
             conn.commit()
             conn.close()
-            post_logger.info(f"投稿済みフラグを更新しました: {video_id} (投稿日時: {posted_at})")
+            post_logger.info(
+                f"投稿済みフラグを更新しました: {video_id} (投稿日時: {posted_at})"
+            )
             return True
 
         except Exception as e:
@@ -428,17 +485,22 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM videos
                 WHERE video_id = ? AND posted_to_bluesky = 1
-            """, (video_id,))
+            """,
+                (video_id,),
+            )
 
             count = cursor.fetchone()[0]
             conn.close()
 
             is_duplicate = count > 0
             if is_duplicate:
-                logger.warning(f"⚠️ 重複投稿検知: この動画は既に投稿済みです（{video_id}）")
+                logger.warning(
+                    f"⚠️ 重複投稿検知: この動画は既に投稿済みです（{video_id}）"
+                )
 
             return is_duplicate
 
@@ -446,7 +508,14 @@ class Database:
             logger.error(f"重複チェック中にエラーが発生: {e}")
             return False
 
-    def update_selection(self, video_id, selected: bool, scheduled_at: str = None, image_mode: str = None, image_filename: str = None):
+    def update_selection(
+        self,
+        video_id,
+        selected: bool,
+        scheduled_at: str = None,
+        image_mode: str = None,
+        image_filename: str = None,
+    ):
         """動画の投稿選択状態・予約日時・画像指定を更新"""
         try:
             conn = self._get_connection()
@@ -522,17 +591,22 @@ class Database:
             logger.error(f"画像なし動画の取得に失敗: {e}")
             return []
 
-    def update_image_info(self, video_id: str, image_mode: str, image_filename: str) -> bool:
+    def update_image_info(
+        self, video_id: str, image_mode: str, image_filename: str
+    ) -> bool:
         """動画の画像情報を更新"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos
                 SET image_mode = ?, image_filename = ?
                 WHERE video_id = ?
-            """, (image_mode, image_filename, video_id))
+            """,
+                (image_mode, image_filename, video_id),
+            )
 
             conn.commit()
             conn.close()
@@ -543,7 +617,9 @@ class Database:
             logger.error(f"画像情報の更新に失敗: {video_id} - {e}")
             return False
 
-    def update_video_status(self, video_id: str, content_type: str = None, live_status = None) -> bool:
+    def update_video_status(
+        self, video_id: str, content_type: str = None, live_status=None
+    ) -> bool:
         """動画のコンテンツ種別とライブ配信状態を更新
 
         Args:
@@ -570,7 +646,10 @@ class Database:
             if live_status is not None or content_type is not None:
                 # content_typeが指定されていない場合は、既存の値を取得
                 if content_type is None:
-                    cursor.execute("SELECT content_type FROM videos WHERE video_id = ?", (video_id,))
+                    cursor.execute(
+                        "SELECT content_type FROM videos WHERE video_id = ?",
+                        (video_id,),
+                    )
                     row = cursor.fetchone()
                     content_type = row[0] if row else "video"
 
@@ -587,7 +666,9 @@ class Database:
 
             conn.commit()
             conn.close()
-            logger.info(f"✅ 動画ステータス更新: {video_id} (content_type={content_type}, live_status={live_status})")
+            logger.info(
+                f"✅ 動画ステータス更新: {video_id} (content_type={content_type}, live_status={live_status})"
+            )
             return True
 
         except Exception as e:
@@ -603,7 +684,9 @@ class Database:
                 cursor = conn.cursor()
 
                 # 削除前に source を取得
-                cursor.execute("SELECT source FROM videos WHERE video_id = ?", (video_id,))
+                cursor.execute(
+                    "SELECT source FROM videos WHERE video_id = ?", (video_id,)
+                )
                 row = cursor.fetchone()
                 source = row["source"] if row else "youtube"
 
@@ -615,6 +698,7 @@ class Database:
                 # ★ 新: 除外動画リストに追加
                 try:
                     from deleted_video_cache import get_deleted_video_cache
+
                     cache = get_deleted_video_cache()
                     cache.add_deleted_video(video_id, source=source)
                 except ImportError:
@@ -627,7 +711,9 @@ class Database:
 
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower() and attempt < DB_RETRY_MAX - 1:
-                    logger.debug(f"DB ロック中。{attempt + 1}/{DB_RETRY_MAX} リトライします...")
+                    logger.debug(
+                        f"DB ロック中。{attempt + 1}/{DB_RETRY_MAX} リトライします..."
+                    )
                     time.sleep(0.5)
                     continue
                 else:

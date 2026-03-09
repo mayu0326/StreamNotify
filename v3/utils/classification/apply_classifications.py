@@ -29,7 +29,10 @@ def _classify_video_core(details):
     # System 3: プレミア公開判定
     is_premiere = False
     if live:
-        if status.get("uploadStatus") == "processed" and broadcast_type in ("live", "upcoming"):
+        if status.get("uploadStatus") == "processed" and broadcast_type in (
+            "live",
+            "upcoming",
+        ):
             is_premiere = True
 
         # System 2: ライブの時間的状態判定（タイムスタンプが最優先）
@@ -95,15 +98,19 @@ def classify_videos(videos):
                 "content_type": content_type,
                 "live_status": live_status,
                 "is_premiere": is_premiere,
-                "broadcast_type": data.get("snippet", {}).get("liveBroadcastContent", "none"),
-                "classified_at": datetime.now().isoformat()
+                "broadcast_type": data.get("snippet", {}).get(
+                    "liveBroadcastContent", "none"
+                ),
+                "classified_at": datetime.now().isoformat(),
             }
 
-            results[content_type].append({
-                "video_id": video_id,
-                "title": data.get("snippet", {}).get("title", ""),
-                "live_status": live_status
-            })
+            results[content_type].append(
+                {
+                    "video_id": video_id,
+                    "title": data.get("snippet", {}).get("title", ""),
+                    "live_status": live_status,
+                }
+            )
         except Exception as e:
             print(f"❌ 分類エラー {video_id}: {e}")
 
@@ -166,16 +173,19 @@ def update_database(classifications):
         # 分類結果を DB に適用
         updated = 0
         for video_id, classification in classifications.items():
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos
                 SET classification_type = ?,
                     broadcast_status = ?
                 WHERE video_id = ?
-            """, (
-                classification["content_type"],
-                classification["live_status"],
-                video_id
-            ))
+            """,
+                (
+                    classification["content_type"],
+                    classification["live_status"],
+                    video_id,
+                ),
+            )
             if cursor.rowcount > 0:
                 updated += 1
 

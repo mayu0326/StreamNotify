@@ -3,12 +3,14 @@
 """
 API レスポンスのブロードキャストタイプを確認
 """
+
 import sys
-sys.path.insert(0, 'v3')
+
+sys.path.insert(0, "v3")
 
 from database import get_database
 
-db = get_database('v3/data/video_list.db')
+db = get_database("v3/data/video_list.db")
 conn = db._get_connection()
 c = conn.cursor()
 
@@ -23,6 +25,7 @@ print("=" * 80)
 # プラグインをローカルスコープで使用
 try:
     from plugins.youtube_api_plugin import YouTubeAPIPlugin
+
     api_plugin = YouTubeAPIPlugin()
 
     if not api_plugin.is_available():
@@ -50,8 +53,11 @@ try:
                 if live:
                     print(f"    - actualEndTime: {bool(live.get('actualEndTime'))}")
                     print(f"    - actualStartTime: {bool(live.get('actualStartTime'))}")
-                    print(f"    - scheduledStartTime: {bool(live.get('scheduledStartTime'))}")
+                    print(
+                        f"    - scheduledStartTime: {bool(live.get('scheduledStartTime'))}"
+                    )
 except Exception as e:
     print(f"❌ エラー: {e}")
     import traceback
+
     traceback.print_exc()

@@ -6,8 +6,8 @@ YouTube Live 分類ロジック - 本番 DB 一括適用
 本番 DB の全 YouTube 動画に対して新分類ロジックを適用し、
 結果を DB に反映（content_type, live_status, is_premiere を更新）
 """
+
 import sys
-import os
 import shutil
 import sqlite3
 from pathlib import Path
@@ -33,12 +33,17 @@ def classify_video(details):
 
 def main():
     """メイン処理"""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("🎬 YouTube Live 分類ロジック - 本番 DB 一括適用")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     db_path = Path(__file__).parent.parent / "v2" / "data" / "video_list.db"
-    backup_path = Path(__file__).parent.parent / "v2" / "data" / f"video_list.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+    backup_path = (
+        Path(__file__).parent.parent
+        / "v2"
+        / "data"
+        / f"video_list.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+    )
 
     if not db_path.exists():
         print(f"❌ DB が見つかりません: {db_path}")
@@ -112,18 +117,26 @@ def main():
                         new_str += " [premiere]"
 
                     # 変更があるかチェック
-                    changed = (new_type != current_type) or (new_status != current_status) or (new_premiere != current_premiere)
+                    changed = (
+                        (new_type != current_type)
+                        or (new_status != current_status)
+                        or (new_premiere != current_premiere)
+                    )
                     marker = "⚠️ " if changed else "✓ "
 
-                    print(f"{i:<4} {video_id:<15} {current_str:<25} {new_str:<25} {marker}")
+                    print(
+                        f"{i:<4} {video_id:<15} {current_str:<25} {new_str:<25} {marker}"
+                    )
 
                     if changed:
-                        changes.append({
-                            "id": db_id,
-                            "video_id": video_id,
-                            "old": (current_type, current_status, current_premiere),
-                            "new": (new_type, new_status, new_premiere)
-                        })
+                        changes.append(
+                            {
+                                "id": db_id,
+                                "video_id": video_id,
+                                "old": (current_type, current_status, current_premiere),
+                                "new": (new_type, new_status, new_premiere),
+                            }
+                        )
                 else:
                     print(f"{i:<4} {video_id:<15} {current_str:<25} [分類エラー]")
                     errors.append((video_id, "分類エラー"))
@@ -132,7 +145,9 @@ def main():
                 errors.append((video_id, "API取得失敗"))
 
         except Exception as e:
-            print(f"{i:<4} {video_id:<15} {current_str:<25} [例外エラー: {str(e)[:20]}...]")
+            print(
+                f"{i:<4} {video_id:<15} {current_str:<25} [例外エラー: {str(e)[:20]}...]"
+            )
             errors.append((video_id, f"例外: {e}"))
 
     print("-" * 90)
@@ -150,11 +165,14 @@ def main():
         try:
             for change in changes:
                 new_type, new_status, new_premiere = change["new"]
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE videos
                     SET content_type = ?, live_status = ?, is_premiere = ?
                     WHERE id = ?
-                """, (new_type, new_status, new_premiere, change["id"]))
+                """,
+                    (new_type, new_status, new_premiere, change["id"]),
+                )
 
             conn.commit()
             print(f"✅ DB を更新しました（{len(changes)} 件）\n")
@@ -174,17 +192,19 @@ def main():
     conn.close()
 
     # Step 6: 統計表示
-    print("="*80)
+    print("=" * 80)
     print("📊 処理結果サマリー\n")
     print(f"✅ 処理対象: {len(youtube_videos)} 件")
     print(f"✅ 変更数: {len(changes)} 件")
     print(f"❌ エラー数: {len(errors)} 件")
-    print(f"✅ 成功率: {((len(youtube_videos) - len(errors)) / len(youtube_videos) * 100):.1f}%")
+    print(
+        f"✅ 成功率: {((len(youtube_videos) - len(errors)) / len(youtube_videos) * 100):.1f}%"
+    )
     print()
     print(f"📁 バックアップ: {backup_path}")
     print(f"📁 本番 DB: {db_path}")
     print()
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     if errors:
         print(f"⚠️  {len(errors)} 件のエラーがありますが、DB は更新されました")
