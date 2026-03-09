@@ -15,7 +15,7 @@ YouTube チャンネルの新着動画を Bluesky に自動投稿するアプリ
 - **Bluesky 自動投稿**: 動画情報を指定フォーマットで Bluesky へ投稿（リッチテキスト・画像添付対応）
 - **ローカル DB**: SQLite で動画情報・投稿状態を管理（重複投稿防止機能付き）
 - **Tkinter GUI**: 動画一覧表示・手動投稿・統計表示に加え、  
-**統合設定GUI**および**バックアップ機能**を搭載
+**全体設定GUI**および**バックアップ機能**を搭載
 - **プラグイン拡張**: ニコニコ / YouTube Live / ロギング拡張などに対応
 - **テンプレートカスタマイズ**: Jinja2 テンプレートにより柔軟な投稿形式のカスタマイズが可能
 
@@ -122,7 +122,7 @@ v3/
 ├── settings.env.example    # 設定ファイルのサンプル
 ├── template_editor_dialog.py # テンプレート編集用 GUI
 ├── template_utils.py       # Jinja2 テンプレート処理エンジン
-├── unified_settings_window.py # 統合設定ウィンドウ（GUIで設定編集）
+├── unified_settings_window.py # 全体設定ウィンドウ（GUIで設定編集）
 ├── utils_v3.py             # 共通ユーティリティ関数
 │
 ├── youtube_core/           # YouTube 関連コアモジュール
@@ -351,8 +351,8 @@ python main_v3.py
 
 | プラグイン | 機能 | 状態 |
 |-----------|------|------|
-| `youtube_live_plugin` | YouTube ライブ配信・アーカイブの判定 | ✅ 2.1.0 実装完了 (2025-12-18) |
-| `niconico_plugin` | ニコニコ動画 RSS 監視 | ✅ 2.1.0 実装完了 (2025-12-18) |
+| `youtube_live_plugin` | YouTube ライブ配信・アーカイブの判定 | ✅ 2.1.0 実装完了 (2025-12-28) |
+| `niconico_plugin` | ニコニコ動画 RSS 監視 | ✅ 2.1.0 実装完了 (2025-12-28) |
 | `youtube_api_plugin` | YouTube Data API 連携（詳細情報取得） | ✅ v3.2.0 実装完了 |
 | `logging_plugin` | ロギング統合管理 | ✅ v3.2.0 実装完了 |
 

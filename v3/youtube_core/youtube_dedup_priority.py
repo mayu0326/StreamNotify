@@ -33,10 +33,8 @@ def get_video_priority(video: Dict[str, Any]) -> tuple:
 
     if is_premiere and published_at_str:
         try:
-            # published_at は ISO 8601 形式: "2025-12-18T10:30:00"
-            premiere_time = datetime.fromisoformat(
-                published_at_str.replace("Z", "+00:00")
-            )
+            # published_at は ISO 8601 形式: "2025-12-28T10:30:00"
+            premiere_time = datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
             if premiere_time.tzinfo:
                 premiere_time = premiere_time.replace(tzinfo=None)
 
@@ -74,9 +72,7 @@ def get_video_priority(video: Dict[str, Any]) -> tuple:
     return (priority, content_type, video_id)
 
 
-def should_keep_video(
-    video: Dict[str, Any], existing_videos: List[Dict[str, Any]]
-) -> bool:
+def should_keep_video(video: Dict[str, Any], existing_videos: List[Dict[str, Any]]) -> bool:
     """
     新しい動画を登録すべきかを判定
 
@@ -97,9 +93,7 @@ def should_keep_video(
     new_priority = get_video_priority(video)
 
     # 既存動画の中で最も優先度が高いものを取得
-    max_existing_priority = max(
-        get_video_priority(existing) for existing in existing_videos
-    )
+    max_existing_priority = max(get_video_priority(existing) for existing in existing_videos)
 
     # 新しい動画の優先度が既存の最大値よりも高い場合のみ登録
     return new_priority > max_existing_priority
@@ -129,28 +123,28 @@ if __name__ == "__main__":
             "content_type": "video",
             "live_status": None,
             "is_premiere": 0,
-            "published_at": "2025-12-18T10:00:00",
+            "published_at": "2025-12-28T10:00:00",
         },
         {
             "video_id": "vid2",
             "content_type": "live",
             "live_status": "live",
             "is_premiere": 0,
-            "published_at": "2025-12-18T11:00:00",
+            "published_at": "2025-12-28T11:00:00",
         },
         {
             "video_id": "vid3",
             "content_type": "archive",
             "live_status": "completed",
             "is_premiere": 0,
-            "published_at": "2025-12-18T12:00:00",
+            "published_at": "2025-12-28T12:00:00",
         },
         {
             "video_id": "vid4",
             "content_type": "video",
             "live_status": None,
             "is_premiere": 1,
-            "published_at": "2025-12-18T22:40:00",
+            "published_at": "2025-12-28T22:40:00",
         },  # 近い未来
     ]
 
