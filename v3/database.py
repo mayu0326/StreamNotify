@@ -1,19 +1,19 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 データベース管理
+StreamNotify - v3 データベース管理
 
 SQLite データベースの操作を行う。
 マルチプロセスアクセス対策：タイムアウト + リトライ
 """
 
-import sqlite3
 import logging
 import os
+import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("AppLogger")
 post_logger = logging.getLogger("PostLogger")
@@ -26,7 +26,7 @@ DB_PATH = "data/video_list.db"
 DB_TIMEOUT = 10
 DB_RETRY_MAX = 3
 
-# バリデーション用の許可リスト（v3.3.0: 5カテゴリ対応）
+# バリデーション用の許可リスト（v3.2.0: 5カテゴリ対応）
 # - "video": 通常動画
 # - "archive": LIVE終了後のアーカイブ
 # - "schedule": LIVE予約枠（upcoming）
@@ -40,13 +40,14 @@ class Database:
     """SQLite データベースを管理するクラス"""
 
     _instance = None
+    _initialized: bool = False
 
-    def __new__(cls, db_path=DB_PATH):
+    def __new__(cls, db_path: str = DB_PATH):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, db_path=DB_PATH):
+    def __init__(self, db_path: str = DB_PATH):
         """
         初期化
 
@@ -55,7 +56,7 @@ class Database:
         """
         if hasattr(self, "_initialized") and self._initialized:
             return
-        self.db_path = db_path
+        self.db_path: str = db_path
         self.is_first_run = not Path(db_path).exists()
         self._ensure_directory()
         self._init_db()
@@ -89,7 +90,9 @@ class Database:
             return "video"
         return content_type
 
-    def _validate_live_status(self, live_status, content_type: str) -> object:
+    def _validate_live_status(
+        self, live_status: Optional[str], content_type: str
+    ) -> Optional[str]:
         """live_status を検証し、正規化する
 
         Args:
@@ -101,14 +104,14 @@ class Database:
         """
         if live_status not in VALID_LIVE_STATUSES:
             logger.warning(
-                f"⚠️ 不正な live_status: '{live_status}' → None に置き換えます"
+                f"[WARN] 不正な live_status: '{live_status}' → None に置き換えます"
             )
             return None
 
         # content_type="video" で live_status が null 以外の場合は警告
         if content_type == "video" and live_status is not None:
             logger.warning(
-                f"⚠️ content_type='video' で live_status='{live_status}' が設定されています。content_type != 'live' の場合は live_status=None を推奨します"
+                f"[WARN] content_type='video' で live_status='{live_status}' が設定されています。content_type != 'live' の場合は live_status=None を推奨します"
             )
 
         return live_status
@@ -152,7 +155,7 @@ class Database:
                 )
             """)
 
-            # スケジュール履歴テーブル（v3.4.1+）
+            # スケジュール履歴テーブル（v3.2.0+）
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schedule_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -225,7 +228,7 @@ class Database:
                 logger.info("🔄 カラムを追加します: broadcast_status")
                 cursor.execute("ALTER TABLE videos ADD COLUMN broadcast_status TEXT")
 
-            # Representative time カラム（v3.3.1+: 動画種別ごとに基準時刻を切り替える）
+            # Representative time カラム（v3.2.0+: 動画種別ごとに基準時刻を切り替える）
             if "representative_time_utc" not in columns:
                 logger.info("🔄 カラムを追加します: representative_time_utc")
                 cursor.execute(
@@ -309,6 +312,9 @@ class Database:
             except Exception as e:
                 logger.warning(f"重複チェック処理でエラー: {e}")
                 # エラー時は続行して挿入を試みる
+            finally:
+                if "conn" in locals():
+                    conn.close()
 
         for attempt in range(DB_RETRY_MAX):
             try:
@@ -481,9 +487,9 @@ class Database:
                 """
                 SELECT COUNT(*) FROM videos
                 WHERE posted_to_bluesky = 0
-                  AND published_at >= datetime('now', ? || ' minutes')
+                  AND published_at >= datetime('now', '-' || ? || ' minutes')
             """,
-                (f"-{lookback_minutes}",),
+                (f"{lookback_minutes}",),
             )
 
             count = cursor.fetchone()[0]
@@ -512,8 +518,9 @@ class Database:
             # 基本 WHERE 条件
             where_clauses = [
                 "posted_to_bluesky = 0",
-                f"published_at >= datetime('now', '-{config.autopost_lookback_minutes} minutes')",
+                "published_at >= datetime('now', ?)",
             ]
+            params = [f"-{config.autopost_lookback_minutes} minutes"]
 
             # 動画種別フィルタ（仕様 v1.0 セクション 3）
             type_conditions = []
@@ -549,6 +556,7 @@ class Database:
                 if deleted_ids:
                     placeholders = ",".join("?" * len(deleted_ids))
                     where_clauses.append(f"video_id NOT IN ({placeholders})")
+                    params.extend(deleted_ids)
                     logger.debug(
                         f"除外動画リスト: {len(deleted_ids)} 件を除外フィルタに適用"
                     )
@@ -560,15 +568,9 @@ class Database:
                 logger.warning(f"⚠️ 除外動画リスト取得エラー: {e}")
 
             where_clause = " AND ".join(where_clauses)
+            sql = f"SELECT * FROM videos WHERE {where_clause} ORDER BY published_at DESC"  # nosec B608
 
-            cursor.execute(
-                f"""
-                SELECT * FROM videos
-                WHERE {where_clause}
-                ORDER BY published_at DESC
-            """,
-                deleted_ids,
-            )
+            cursor.execute(sql, params)
 
             videos = [dict(row) for row in cursor.fetchall()]
             conn.close()
@@ -700,11 +702,11 @@ class Database:
 
     def update_selection(
         self,
-        video_id,
+        video_id: str,
         selected: bool,
-        scheduled_at: str = None,
-        image_mode: str = None,
-        image_filename: str = None,
+        scheduled_at: Optional[str] = None,
+        image_mode: Optional[str] = None,
+        image_filename: Optional[str] = None,
     ):
         """動画の投稿選択状態・予約日時・画像指定を更新"""
         try:
@@ -800,7 +802,7 @@ class Database:
 
             conn.commit()
             conn.close()
-            logger.info(f"✅ 画像情報更新: {video_id} → {image_filename}")
+            logger.info(f"[SUCCESS] 画像情報更新: {video_id} → {image_filename}")
             return True
 
         except Exception as e:
@@ -808,7 +810,10 @@ class Database:
             return False
 
     def update_video_status(
-        self, video_id: str, content_type: str = None, live_status=None
+        self,
+        video_id: str,
+        content_type: Optional[str] = None,
+        live_status: Optional[str] = None,
     ) -> bool:
         """動画のコンテンツ種別とライブ配信状態を更新
 
@@ -825,8 +830,8 @@ class Database:
             cursor = conn.cursor()
 
             # 更新対象のカラムを動的に組み立て
-            update_parts = []
-            params = []
+            update_parts: List[str] = []
+            params: List[Any] = []
 
             if content_type is not None:
                 content_type = self._validate_content_type(content_type)
@@ -851,13 +856,13 @@ class Database:
                 return True
 
             params.append(video_id)
-            sql = f"UPDATE videos SET {', '.join(update_parts)} WHERE video_id = ?"
+            sql = f"UPDATE videos SET {', '.join(update_parts)} WHERE video_id = ?"  # nosec B608
             cursor.execute(sql, params)
 
             conn.commit()
             conn.close()
             logger.info(
-                f"✅ 動画ステータス更新: {video_id} (content_type={content_type}, live_status={live_status})"
+                f"[SUCCESS] 動画ステータス更新: {video_id} (content_type={content_type}, live_status={live_status})"
             )
             return True
 
@@ -899,7 +904,7 @@ class Database:
                 )
                 row = cursor.fetchone()
                 if not row:
-                    logger.debug(f"⚠️ 動画が見つかりません: {video_id}")
+                    logger.debug(f"[WARN] 動画が見つかりません: {video_id}")
                     conn.close()
                     return False
 
@@ -923,13 +928,13 @@ class Database:
 
                 if old_published_at != published_at:
                     logger.info(
-                        f"✅ [★重要] published_at を API データで更新: {video_id}"
+                        f"[SUCCESS] [重要] published_at を API データで更新: {video_id}"
                     )
                     logger.info(f"   旧: {old_published_at}")
                     logger.info(f"   新: {published_at}")
                 else:
                     logger.debug(
-                        f"ℹ️ published_at は変わっていません（既に同じ値）: {video_id}"
+                        f"[INFO] published_at は変わっていません（既に同じ値）: {video_id}"
                     )
 
                 return True
@@ -944,17 +949,17 @@ class Database:
                     continue
                 else:
                     logger.error(
-                        f"❌ DB エラー（published_at 更新失敗）: {video_id} - {e}"
+                        f"[ERROR] DB エラー（published_at 更新失敗）: {video_id} - {e}"
                     )
                     return False
 
             except Exception as e:
                 logger.error(
-                    f"❌ published_at 更新に予期しないエラー: {video_id} - {e}"
+                    f"[ERROR] published_at 更新に予期しないエラー: {video_id} - {e}"
                 )
                 return False
 
-        logger.error(f"❌ published_at 更新に失敗（リトライ上限）: {video_id}")
+        logger.error(f"[ERROR] published_at 更新に失敗（リトライ上限）: {video_id}")
         return False
 
     def update_video_metadata(self, video_id: str, **metadata) -> bool:
@@ -994,11 +999,11 @@ class Database:
                 conn = self._get_connection()
                 cursor = conn.cursor()
 
-                # 更新 SQL を動的に構築
+                # 更新 SQL を動的に構築。カラム名はホワイトリスト形式ではないが、keys() から取得しているため安全
                 set_clause = ", ".join([f"{col} = ?" for col in update_data.keys()])
                 values = list(update_data.values()) + [video_id]
 
-                sql = f"UPDATE videos SET {set_clause} WHERE video_id = ?"
+                sql = f"UPDATE videos SET {set_clause} WHERE video_id = ?"  # nosec B608
                 cursor.execute(sql, values)
 
                 affected_rows = cursor.rowcount
@@ -1006,15 +1011,17 @@ class Database:
                 conn.close()
 
                 if affected_rows == 0:
-                    logger.debug(f"⚠️ 対象の動画が見つかりません: {video_id}")
+                    logger.debug(f"[WARN] 対象の動画が見つかりません: {video_id}")
                     return False
 
                 # 更新内容をログ出力
                 for col, val in update_data.items():
                     if isinstance(val, str) and len(val) > 50:
-                        logger.info(f"✅ {col} を更新: {video_id} → {val[:50]}...")
+                        logger.info(
+                            f"[SUCCESS] {col} を更新: {video_id} → {val[:50]}..."
+                        )
                     else:
-                        logger.info(f"✅ {col} を更新: {video_id} → {val}")
+                        logger.info(f"[SUCCESS] {col} を更新: {video_id} → {val}")
 
                 return True
 
@@ -1027,15 +1034,17 @@ class Database:
                     continue
                 else:
                     logger.error(
-                        f"❌ DB エラー（メタデータ更新失敗）: {video_id} - {e}"
+                        f"[ERROR] DB エラー（メタデータ更新失敗）: {video_id} - {e}"
                     )
                     return False
 
             except Exception as e:
-                logger.error(f"❌ メタデータ更新に予期しないエラー: {video_id} - {e}")
+                logger.error(
+                    f"[ERROR] メタデータ更新に予期しないエラー: {video_id} - {e}"
+                )
                 return False
 
-        logger.error(f"❌ メタデータ更新に失敗（リトライ上限）: {video_id}")
+        logger.error(f"[ERROR] メタデータ更新に失敗（リトライ上限）: {video_id}")
         return False
 
     def delete_video(self, video_id: str) -> dict:
@@ -1089,7 +1098,7 @@ class Database:
                 except Exception as e:
                     logger.error(f"除外動画リスト登録エラー: {video_id} - {e}")
 
-                logger.info(f"✅ 動画を削除しました: {video_id}")
+                logger.info(f"[SUCCESS] 動画を削除しました: {video_id}")
                 return result
 
             except sqlite3.OperationalError as e:
@@ -1170,7 +1179,7 @@ class Database:
             return None
 
     def update_selection_batch(
-        self, video_ids: list, selected: bool, scheduled_at: str = None
+        self, video_ids: list, selected: bool, scheduled_at: Optional[str] = None
     ) -> dict:
         """
         複数の動画の投稿選択状態を一括更新

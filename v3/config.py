@@ -1,15 +1,16 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 設定管理
+StreamNotify - v3 設定管理
 
 .env から設定を読み込み、バリデーションを行う。
 """
 
-import os
 import logging
-from dotenv import load_dotenv
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 logger = logging.getLogger("AppLogger")
 
@@ -144,7 +145,9 @@ class Config:
                         f"WebSub ポーリング間隔が範囲外です (3〜30): {self.poll_interval_minutes}。5分に設定します。"
                     )
                     self.poll_interval_minutes = 5
-                logger.debug(f"📡 WebSub ポーリング間隔: {self.poll_interval_minutes} 分")
+                logger.debug(
+                    f"📡 WebSub ポーリング間隔: {self.poll_interval_minutes} 分"
+                )
             except ValueError:
                 logger.warning(
                     "YOUTUBE_WEBSUB_POLL_INTERVAL_MINUTES が無効です。5分に設定します。"
@@ -184,7 +187,7 @@ class Config:
         )
 
         # YouTube重複排除オプション（デフォルト: True）
-        # 同じタイトル+チャンネルの動画は優先度ベースで管理（v3.3.1実装）
+        # 同じタイトル+チャンネルの動画は優先度ベースで管理（v3.2.0実装）
         youtube_dedup_str = os.getenv("YOUTUBE_DEDUP_ENABLED", "true").strip().lower()
         self.youtube_dedup_enabled = youtube_dedup_str in ("true", "1", "yes", "on")
         if self.youtube_dedup_enabled:
@@ -275,7 +278,7 @@ class Config:
             logger.warning("NICONICO_POLL_INTERVAL が無効です。10分に設定します。")
             self.niconico_poll_interval_minutes = 10
 
-        # ★ 新: YouTube Live 動的ポーリング間隔（v3.3.0+ 改訂版）
+        # ★ 新: YouTube Live 動的ポーリング間隔（v3.2.0+ 改訂版）
         try:
             self.youtube_live_poll_interval_active = int(
                 os.getenv("YOUTUBE_LIVE_POLL_INTERVAL_ACTIVE", "15")

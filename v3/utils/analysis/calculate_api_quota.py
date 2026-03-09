@@ -6,8 +6,8 @@ YouTube Live 分類ロジック - API クォータ計算
 本番 DB の全動画に対してロジックを適用した場合の API コスト見積もり
 """
 
-import sys
 import sqlite3
+import sys
 from pathlib import Path
 
 # v3 パスを追加

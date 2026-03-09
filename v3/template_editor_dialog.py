@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 テンプレート編集ダイアログ
+StreamNotify - v3 テンプレート編集ダイアログ
 
 Jinja2ベースのテンプレート編集ダイアログ（tkinter）。
 - テンプレートテキスト編集
@@ -18,18 +18,18 @@ Jinja2ベースのテンプレート編集ダイアログ（tkinter）。
        テンプレート編集可能（将来の機能フック用）ですが、実行時には投稿されません。
 """
 
-import tkinter as tk
-from tkinter import messagebox, filedialog, ttk
 import logging
-from typing import Optional, Callable
+import tkinter as tk
 from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
+from typing import Callable, Optional
 
 # v3 テンプレートユーティリティをインポート
 from template_utils import (
     get_sample_context,
-    preview_template,
     get_template_args_for_dialog,
     get_template_path,
+    preview_template,
 )
 
 logger = logging.getLogger("GUILogger")
@@ -92,7 +92,7 @@ class TemplateEditorDialog(tk.Toplevel):
         template_type: str,
         initial_text: str = "",
         on_save: Optional[Callable[[str, str], None]] = None,
-        initial_file_path: str = None,
+        initial_file_path: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(master, **kwargs)

@@ -1,26 +1,28 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 GUI（改善版）
+StreamNotify - v3 GUI（改善版）
 
 DB の動画一覧を表示し、投稿対象をチェックボックスで選択・スケジュール管理。
 tkinter を使用（標準ライブラリのみ）
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-from datetime import datetime, timedelta
+import calendar
 import logging
 import os
-import calendar
-from image_manager import get_image_manager
+import tkinter as tk
+from datetime import datetime, timedelta
 from pathlib import Path
-from template_editor_dialog import TemplateEditorDialog
+from tkinter import filedialog, messagebox, ttk
+from typing import Any, Dict, List, Optional, Tuple, cast
+
 from backup_manager import BackupManager
-from unified_settings_window import UnifiedSettingsWindow  # Restored
-from schedule_manager import BatchScheduleManager  # Restored
 from batch_schedule_dialog import BatchScheduleDialog  # Restored
+from image_manager import get_image_manager
+from schedule_manager import BatchScheduleManager  # Restored
 from schedule_view_tab import ScheduleViewTab  # Restored
+from template_editor_dialog import TemplateEditorDialog
+from unified_settings_window import UnifiedSettingsWindow  # Restored
 
 try:
     from PIL import Image
@@ -81,7 +83,7 @@ class CreateToolTip:
             background="#ffffe0",
             relief="solid",
             borderwidth=1,
-            font=("tahoma", "8", "normal"),
+            font=("tahoma", 8, "normal"),
         )
         label.pack(ipadx=1)
 
@@ -97,7 +99,7 @@ class StreamNotifyGUI:
 
     def __init__(self, root, db, plugin_manager=None, bluesky_core=None):
         self.root = root
-        self.root.title("StreamNotify on Bluesky - DB 管理")
+        self.root.title("StreamNotify - DB 管理画面")
         self.root.geometry("1520x750")
 
         self.db = db
@@ -106,6 +108,7 @@ class StreamNotifyGUI:
         self.image_manager = get_image_manager()  # 画像管理クラスを初期化
         self.schedule_mgr = BatchScheduleManager(db)  # Restored
         self.selected_rows = set()
+        self.result: Optional[Dict[str, Any]] = None
 
         # 設定を読み込み（AUTOPOST モード判定用）
         from config import get_config
@@ -321,7 +324,7 @@ class StreamNotifyGUI:
         scrollbar = ttk.Scrollbar(
             table_frame, orient=tk.VERTICAL, command=self.tree.yview
         )
-        self.tree.configure(yscroll=scrollbar.set)
+        self.tree.configure(yscrollcommand=scrollbar.set)
 
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -395,9 +398,9 @@ class StreamNotifyGUI:
     def fetch_rss_manually(self):
         """RSS フィードを手動で今すぐ取得・更新"""
         try:
+            from config import Config
             from youtube_core.youtube_rss import YouTubeRSS
             from youtube_core.youtube_websub import YouTubeWebSub
-            from config import Config
 
             config = Config("settings.env")
             channel_id = config.youtube_channel_id
@@ -489,6 +492,7 @@ class StreamNotifyGUI:
             # 実行処理
             import time
             from datetime import datetime, timedelta
+
             from database import get_database
             from youtube_core.youtube_video_classifier import get_video_classifier
 
@@ -1281,8 +1285,9 @@ DB を再読込みします。"""
                 return
 
             # YouTube動画の場合、ロガーを切り替え
-            import image_manager as im_module
             import logging
+
+            import image_manager as im_module
 
             original_logger = im_module.logger
             if site_dir == "YouTube":
@@ -1333,8 +1338,9 @@ DB を再読込みします。"""
                 return
 
             # ロガーを一時的に切り替え
-            import image_manager as im_module
             import logging
+
+            import image_manager as im_module
 
             original_logger = im_module.logger
             im_module.logger = logging.getLogger("YouTubeLogger")
@@ -1505,7 +1511,7 @@ DB を再読込みします。"""
             image_path = image_info["path"]
             has_pillow = True
             try:
-                from PIL import Image, ImageTk, ImageOps  # type: ignore
+                from PIL import Image, ImageOps, ImageTk  # type: ignore
             except ImportError:
                 has_pillow = False
 
@@ -1519,7 +1525,8 @@ DB を再読込みします。"""
                         img_obj.thumbnail((480, 320), Image.Resampling.LANCZOS)
                         photo = ImageTk.PhotoImage(img_obj)
                         img_label.configure(image=photo)
-                        img_label.image = photo  # GC防止
+                        # 保管用属性：参照を保持してGCされないようにする
+                        img_label.image = photo  # type: ignore # GC防止
                 except Exception as e:
                     ttk.Label(
                         preview_window,
@@ -1803,7 +1810,8 @@ DB を再読込みします。"""
         )
 
         # v3.2.0: 日別集計（過去7日間）
-        from datetime import timedelta, datetime as dt
+        from datetime import datetime as dt
+        from datetime import timedelta
 
         today = dt.now().date()
         daily_stats = {}
@@ -1964,7 +1972,7 @@ YouTube:      {youtube_count} 件 (投稿済み: {youtube_posted})
         ttk.Button(backup_win, text="閉じる", command=backup_win.destroy).pack(pady=5)
 
     def youtube_live_settings(self):
-        """統合設定ウィンドウを Live タブをアクティブにして開く（v3.3.0+）"""
+        """統合設定ウィンドウを Live タブをアクティブにして開く（v3.2.0+）"""
         UnifiedSettingsWindow(self.root, initial_tab="live", db=self.db)
 
     def show_plugins(self):
@@ -2036,7 +2044,7 @@ YouTube:      {youtube_count} 件 (投稿済み: {youtube_posted})
         scrollbar = ttk.Scrollbar(
             text_frame, orient=tk.VERTICAL, command=text_widget.yview
         )
-        text_widget.configure(yscroll=scrollbar.set)
+        text_widget.configure(yscrollcommand=scrollbar.set)
 
         text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -2920,7 +2928,7 @@ YouTube:      {youtube_count} 件 (投稿済み: {youtube_posted})
         except Exception:
             return False
 
-    def _extract_video_id(self, input_value: str) -> str:
+    def _extract_video_id(self, input_value: str) -> Optional[str]:
         """URLまたは ID から YouTube 動画IDを抽出"""
         input_value = input_value.strip()
 
@@ -2948,7 +2956,7 @@ YouTube:      {youtube_count} 件 (投稿済み: {youtube_posted})
 
         return None
 
-    def _extract_niconico_video_id(self, input_value: str) -> str:
+    def _extract_niconico_video_id(self, input_value: str) -> Optional[str]:
         """URLまたは ID からニコニコ動画IDを抽出"""
         input_value = input_value.strip()
 
@@ -3510,7 +3518,8 @@ class PostSettingsWindow:
                 preview_label = tk.Label(
                     preview_frame, image=photo, bg="lightgray", relief=tk.SUNKEN
                 )
-                preview_label.image = photo  # ガベージコレクション対策
+                # 保管用属性：参照を保持してGCされないようにする
+                preview_label.image = photo  # type: ignore # ガベージコレクション対策
                 preview_label.pack()
 
         except Exception as e:
@@ -3559,6 +3568,9 @@ class PostSettingsWindow:
         """投稿を実行"""
         try:
             video = self.video
+            if self.result is None:
+                logger.error("❌ self.result is None")
+                return
             use_image = self.result["use_image"]
             resize_small = self.result["resize_small_images"]
 

@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 YouTube WebSub 管理（Webhook版）
+StreamNotify - v3 YouTube WebSub 管理（Webhook版）
 
 WebSub（Webhook）経由で本番サーバーから動画情報を取得・DB に保存する。
 （画像処理は thumbnails/youtube_thumb_utils.py の YouTubeThumbPlugin で管理）
 
-★ v3.3.0+ WebSub版：RSS の代わりに ProductionServerAPIClient を使用
+★ v3.2.0+ WebSub版：RSS の代わりに ProductionServerAPIClient を使用
 """
 
 import logging
-import os
-import sqlite3
-from typing import List, Dict
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Tuple
+
 from image_manager import get_youtube_thumbnail_url
 
 logger = logging.getLogger("AppLogger")
@@ -21,6 +20,7 @@ logger = logging.getLogger("AppLogger")
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
 __license__ = "GPLv2"
+
 
 class YouTubeWebSub:
     """YouTube WebSub 取得・管理クラス（ProductionServerAPIClient を使用）"""
@@ -41,18 +41,21 @@ class YouTubeWebSub:
         if self._api_client is None:
             try:
                 from production_server_api_client import get_production_api_client
+
                 self._api_client = get_production_api_client()
             except ImportError as e:
-                logger.warning(f"⚠️ ProductionServerAPIClient のインポート失敗: {e}")
+                logger.warning(
+                    f"[WARN] ProductionServerAPIClient のインポート失敗: {e}"
+                )
                 return None
             except Exception as e:
-                logger.warning(f"⚠️ ProductionServerAPIClient の初期化失敗: {e}")
+                logger.warning(f"[WARN] ProductionServerAPIClient の初期化失敗: {e}")
                 return None
         return self._api_client
 
     def health_check(self) -> bool:
         """
-        ★ 【v3.3.3】WebSub サーバー接続確認
+        ★ 【v3.2.0】WebSub サーバー接続確認
 
         ProductionServerAPIClient が利用可能かチェック
 
@@ -62,20 +65,26 @@ class YouTubeWebSub:
         try:
             api_client = self._get_api_client()
             if api_client is None:
-                logger.warning("⚠️ WebSub health check 失敗: ProductionServerAPIClient が利用不可")
+                logger.warning(
+                    "[WARN] WebSub health check 失敗: ProductionServerAPIClient が利用不可"
+                )
                 return False
 
             # API クライアントが正常に初期化されているか確認
             # （簡易版：オブジェクトが存在するかだけを確認）
-            if hasattr(api_client, 'get_websub_videos'):
-                logger.debug("✅ WebSub health check 成功: ProductionServerAPIClient は正常に動作しています")
+            if hasattr(api_client, "get_websub_videos"):
+                logger.debug(
+                    "[SUCCESS] WebSub health check 成功: ProductionServerAPIClient は正常に動作しています"
+                )
                 return True
             else:
-                logger.warning("⚠️ WebSub health check 失敗: ProductionServerAPIClient に get_websub_videos メソッドがありません")
+                logger.warning(
+                    "⚠️ WebSub health check 失敗: ProductionServerAPIClient に get_websub_videos メソッドがありません"
+                )
                 return False
 
         except Exception as e:
-            logger.warning(f"⚠️ WebSub health check エラー: {e}")
+            logger.warning(f"[WARN] WebSub health check エラー: {e}")
             return False
 
     def _ensure_websub_registered(self):
@@ -104,7 +113,9 @@ class YouTubeWebSub:
 
         api_client = self._get_api_client()
         if api_client is None:
-            logger.error("❌ WebSub register をスキップ: ProductionServerAPIClient が利用不可です")
+            logger.error(
+                "[FAILURE] WebSub register をスキップ: ProductionServerAPIClient が利用不可です"
+            )
             return
 
         # ProductionServerAPIClient 側の /register 呼び出しメソッドを利用
@@ -116,7 +127,9 @@ class YouTubeWebSub:
             )
         except AttributeError:
             # メソッドがまだ実装されていないなど
-            logger.error("❌ WebSub register 失敗: register_websub_client メソッドが見つかりません")
+            logger.error(
+                "❌ WebSub register 失敗: register_websub_client メソッドが見つかりません"
+            )
             return
 
         if ok:
@@ -124,12 +137,14 @@ class YouTubeWebSub:
             debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
             if debug_mode:
                 logger.info(
-                    f"✅ WebSub register 成功: clientid={clientid}, "
+                    f"[SUCCESS] WebSub register 成功: clientid={clientid}, "
                     f"channelid={self.channel_id}, callbackurl={callbackurl}"
                 )
             self._websub_registered = True
         else:
-            logger.warning("⚠️ WebSub register が失敗しました（ログを確認してください）")
+            logger.warning(
+                "⚠️ WebSub register が失敗しました（ログを確認してください）"
+            )
 
     def fetch_feed(self) -> List[Dict]:
         """
@@ -144,11 +159,15 @@ class YouTubeWebSub:
 
             api_client = self._get_api_client()
             if api_client is None:
-                logger.error("❌ ProductionServerAPIClient が利用不可（WebSub経由の取得失敗）")
+                logger.error(
+                    "[FAILURE] ProductionServerAPIClient が利用不可（WebSub経由の取得失敗）"
+                )
                 return []
 
             youtube_logger = logging.getLogger("YouTubeLogger")
-            logger.debug(f"📡 WebSub から動画情報を取得します（チャンネル: {self.channel_id}）")
+            logger.debug(
+                f"📡 WebSub から動画情報を取得します（チャンネル: {self.channel_id}）"
+            )
 
             # ProductionServerAPI から動画を取得
             items = api_client.get_websub_videos(
@@ -157,7 +176,7 @@ class YouTubeWebSub:
             )
 
             if not items:
-                youtube_logger.debug("ℹ️ WebSub から動画情報を取得できませんでした")
+                youtube_logger.debug("[INFO] WebSub から動画情報を取得できませんでした")
                 return []
 
             videos = []
@@ -174,21 +193,32 @@ class YouTubeWebSub:
                     published_at = item.get("published_at", "")
                     channel_name = item.get("channel_name", "")
 
-                    # ★ v3.3.0: WebSub から取得した channel_name が空の場合、フォールバックで取得
+                    # ★ v3.2.0: WebSub から取得した channel_name が空の場合、フォールバックで取得
                     # （API 呼び出しを最小化するため、API に頼らず自動生成フォールバック）
                     if not channel_name:
                         try:
                             from config import get_config
+
                             config = get_config("settings.env")
-                            channel_id = config.youtube_channel_id if hasattr(config, "youtube_channel_id") else ""
+                            channel_id = (
+                                config.youtube_channel_id
+                                if hasattr(config, "youtube_channel_id")
+                                else ""
+                            )
                             if channel_id:
                                 channel_name = f"Channel ({channel_id[:8]}...)"
-                                logger.debug(f"✅ WebSub の channel_name が空だったため、チャンネル ID からフォールバック: {channel_name}")
+                                logger.debug(
+                                    f"✅ WebSub の channel_name が空だったため、チャンネル ID からフォールバック: {channel_name}"
+                                )
                         except Exception as e:
-                            logger.debug(f"⚠️ チャンネル ID からのフォールバック失敗: {e}")
+                            logger.debug(
+                                f"⚠️ チャンネル ID からのフォールバック失敗: {e}"
+                            )
 
                     if not video_id:
-                        logger.warning(f"⚠️ video_id が不正です。アイテムをスキップします: {item}")
+                        logger.warning(
+                            f"⚠️ video_id が不正です。アイテムをスキップします: {item}"
+                        )
                         continue
 
                     # ★ 重要: WebSub から取得した published_at は JST 形式（またはUTC）
@@ -198,7 +228,9 @@ class YouTubeWebSub:
                     # ★ 重要: サムネイル URL を取得
                     thumbnail_url = get_youtube_thumbnail_url(video_id)
                     if not thumbnail_url:
-                        logger.warning(f"⚠️ WebSub {video_id}: サムネイル URL が取得できませんでした")
+                        logger.warning(
+                            f"⚠️ WebSub {video_id}: サムネイル URL が取得できませんでした"
+                        )
                     else:
                         logger.debug(f"✅ WebSub {video_id}: サムネイル URL 取得完了")
 
@@ -211,7 +243,9 @@ class YouTubeWebSub:
                         "thumbnail_url": thumbnail_url,
                     }
                     videos.append(video)
-                    logger.debug(f"[WebSub parse] {video_id}: video辞書作成完了 - thumbnail_url: {thumbnail_url}")
+                    logger.debug(
+                        f"[WebSub parse] {video_id}: video辞書作成完了 - thumbnail_url: {thumbnail_url}"
+                    )
 
                 except Exception as e:
                     logger.warning(f"⚠️ WebSub アイテムのパース失敗: {e}")
@@ -220,11 +254,13 @@ class YouTubeWebSub:
             youtube_logger.info(f"📡 WebSub から {len(videos)} 個の動画を取得しました")
             # ★ デバッグ: 各動画の thumbnail_url を確認
             for v in videos[:3]:  # 最初の 3 件
-                logger.debug(f"[WebSub fetch_feed] {v.get('video_id')}: thumbnail_url = {v.get('thumbnail_url')}")
+                logger.debug(
+                    f"[WebSub fetch_feed] {v.get('video_id')}: thumbnail_url = {v.get('thumbnail_url')}"
+                )
             return videos
 
         except Exception as e:
-            logger.error(f"❌ WebSub 取得に失敗しました: {e}")
+            logger.error(f"[FAILURE] WebSub 取得に失敗しました: {e}")
             return []
 
     def _ensure_jst_format(self, published_at: str) -> str:
@@ -246,10 +282,14 @@ class YouTubeWebSub:
                 return published_at
 
             # UTC → JST 変換
-            utc_time = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
-            jst_time = utc_time.astimezone(timezone(timedelta(hours=9))).replace(tzinfo=None)
+            utc_time = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+            jst_time = utc_time.astimezone(timezone(timedelta(hours=9))).replace(
+                tzinfo=None
+            )
             published_at_jst = jst_time.isoformat()
-            logger.debug(f"📡 WebSub 日時を JST に変換: {published_at} → {published_at_jst}")
+            logger.debug(
+                f"📡 WebSub 日時を JST に変換: {published_at} → {published_at_jst}"
+            )
             return published_at_jst
 
         except Exception as e:
@@ -263,10 +303,10 @@ class YouTubeWebSub:
         ⚠️ NOTE: 新規動画の画像ダウンロード・保存は
         thumbnails/youtube_thumb_utils.py の YouTubeThumbPlugin で実行されます。
 
-        ★ v3.3.0+ YouTube API優先: WebSub登録後、YouTube API で最新情報を確認し、
+        ★ v3.2.0+ YouTube API優先: WebSub登録後、YouTube API で最新情報を確認し、
            scheduledStartTime が存在する場合は上書きします。
 
-        ★ v3.3.0+ YouTubeVideoClassifier + LiveModule 統合:
+        ★ v3.2.0+ YouTubeVideoClassifier + LiveModule 統合:
            - YouTubeVideoClassifier で動画を分類（schedule/live/completed/archive vs 通常動画）
            - Live関連 → LiveModule.register_from_classified() で登録
            - 通常動画 → 既存処理で続行
@@ -286,7 +326,9 @@ class YouTubeWebSub:
         live_registered_count = 0
         youtube_logger = logging.getLogger("YouTubeLogger")
 
-        youtube_logger.info(f"[YouTube WebSub] 取得した {len(videos)} 個の動画を DB に照合しています...")
+        youtube_logger.info(
+            f"[YouTube WebSub] 取得した {len(videos)} 個の動画を DB に照合しています..."
+        )
 
         # 除外動画リストを取得
         try:
@@ -297,25 +339,28 @@ class YouTubeWebSub:
             youtube_logger.warning("deleted_video_cache モジュールが見つかりません")
             deleted_cache = None
 
-# ★ 新: 重複排除ロジック（video_id + タイトル + live_status + チャンネル名 の4つが同じ場合のみ）
-        # v3.3.1+: 同じ動画の完全な重複を検出（4つの条件すべてが同じケースはレア）
+        # ★ 新: 重複排除ロジック（video_id + タイトル + live_status + チャンネル名 の4つが同じ場合のみ）
+        # v3.2.0+: 同じ動画の完全な重複を検出（4つの条件すべてが同じケースはレア）
         # 理由：video_id が異なれば別の動画、live_status が異なれば別のイベント状態
         try:
             from config import get_config
+
             config = get_config("settings.env")
-            youtube_dedup_enabled = getattr(config, 'youtube_dedup_enabled', True)  # デフォルト: True
+            youtube_dedup_enabled = getattr(
+                config, "youtube_dedup_enabled", True
+            )  # デフォルト: True
         except Exception:
             youtube_dedup_enabled = True  # エラー時はデフォルト有効
 
         # 動画をグループ化（video_id + タイトル + live_status + チャンネル名）
-        video_groups = {}
+        video_groups: Dict[Tuple[str, str, str, str], List[Dict[str, Any]]] = {}
         for video in videos:
             # グループキー：video_id + タイトル + live_status + チャンネル名
             group_key = (
                 video.get("video_id", ""),
                 video.get("title", ""),
                 video.get("live_status", "none"),  # デフォルト: "none"
-                video.get("channel_name", "")
+                video.get("channel_name", ""),
             )
             if group_key not in video_groups:
                 video_groups[group_key] = []
@@ -324,9 +369,16 @@ class YouTubeWebSub:
         # 重複排除を適用
         filtered_videos = []
         if youtube_dedup_enabled and len(video_groups) > 0:
-            youtube_logger.debug(f"🔄 YouTube重複排除: {len(video_groups)}個のグループを処理中...")
+            youtube_logger.debug(
+                f"🔄 YouTube重複排除: {len(video_groups)}個のグループを処理中..."
+            )
 
-            for (video_id, title, live_status, channel_name), group_videos in video_groups.items():
+            for (
+                video_id,
+                title,
+                live_status,
+                channel_name,
+            ), group_videos in video_groups.items():
                 if len(group_videos) == 1:
                     # グループに1つだけの場合はそのまま追加
                     filtered_videos.append(group_videos[0])
@@ -343,14 +395,17 @@ class YouTubeWebSub:
             # 重複排除無効の場合、すべての動画を処理
             filtered_videos = videos
             if not youtube_dedup_enabled:
-                youtube_logger.debug(f"ℹ️ 重複排除が無効のため、{len(videos)}件すべてを処理します")
+                youtube_logger.debug(
+                    f"ℹ️ 重複排除が無効のため、{len(videos)}件すべてを処理します"
+                )
 
-        youtube_logger.debug(f"✅ 重複排除後の動画数: {len(filtered_videos)}件")
+        youtube_logger.debug(f"[SUCCESS] 重複排除後の動画数: {len(filtered_videos)}件")
 
         # YouTube API プラグインを取得（API有効時のみ）
         youtube_api_plugin = None
         try:
             from plugin_manager import get_plugin_manager
+
             plugin_mgr = get_plugin_manager()
             youtube_api_plugin = plugin_mgr.get_plugin("youtube_api_plugin")
             if youtube_api_plugin and youtube_api_plugin.is_available():
@@ -364,21 +419,26 @@ class YouTubeWebSub:
 
         # database モジュールのロガーを一時的に YouTubeLogger に切り替え
         import database as db_module
+
         original_logger = db_module.logger
         db_module.logger = youtube_logger
 
         try:
             for video in filtered_videos:
-                # ★ 【v3.3.2】新規動画のみを処理
+                # ★ 【v3.2.0】新規動画のみを処理
                 # 既存動画は処理をスキップし、API 呼び出しを削減
                 existing_video = database.get_video_by_id(video["video_id"])
                 if existing_video:
-                    youtube_logger.debug(f"ℹ️ 既存動画のため、スキップします: {video['title']}")
+                    youtube_logger.debug(
+                        f"ℹ️ 既存動画のため、スキップします: {video['title']}"
+                    )
                     existing_count += 1
                     continue  # 既存動画は詳細情報の再取得をしない（クォータ削減）
 
                 # 除外動画リスト確認
-                if deleted_cache and deleted_cache.is_deleted(video["video_id"], source="youtube"):
+                if deleted_cache and deleted_cache.is_deleted(
+                    video["video_id"], source="youtube"
+                ):
                     youtube_logger.info(
                         f"⏭️ 除外動画リスト登録済みのため、スキップします: {video['title']}"
                     )
@@ -391,11 +451,15 @@ class YouTubeWebSub:
                 # ★ 重要: YouTube API プラグイン を優先実行
                 # API から取得した scheduledStartTime を published_at として使用
                 api_published_at = None
-                api_scheduled_start_time = None  # ★ 新: scheduledStartTime を別途保存（上書き判定用）
+                api_scheduled_start_time = (
+                    None  # ★ 新: scheduledStartTime を別途保存（上書き判定用）
+                )
 
                 if youtube_api_plugin:
                     try:
-                        details = youtube_api_plugin.fetch_video_detail(video["video_id"])
+                        details = youtube_api_plugin.fetch_video_detail(
+                            video["video_id"]
+                        )
                         if details:
                             live_details = details.get("liveStreamingDetails", {})
                             snippet = details.get("snippet", {})
@@ -459,15 +523,23 @@ class YouTubeWebSub:
 
                 if classifier and live_module:
                     try:
-                        classification_result = classifier.classify_video(video["video_id"])
+                        classification_result = classifier.classify_video(
+                            video["video_id"]
+                        )
                         if classification_result.get("success"):
                             video_type = classification_result.get("type")
-                            youtube_logger.debug(f"🎬 動画を分類: {video.get('title')} (type={video_type})")
+                            youtube_logger.debug(
+                                f"[VIDEO] 動画を分類: {video.get('title')} (type={video_type})Sync"
+                            )
                         else:
-                            youtube_logger.debug(f"⏭️ 分類失敗（通常動画として処理）: {video['video_id']} - {classification_result.get('error')}")
+                            youtube_logger.debug(
+                                f"⏭️ 分類失敗（通常動画として処理）: {video['video_id']} - {classification_result.get('error')}"
+                            )
                             video_type = "video"  # デフォルトは通常動画
                     except Exception as e:
-                        youtube_logger.warning(f"⚠️ YouTube VideoClassifier 呼び出しエラー（通常動画として処理）: {e}")
+                        youtube_logger.warning(
+                            f"⚠️ YouTube VideoClassifier 呼び出しエラー（通常動画として処理）: {e}"
+                        )
                         video_type = "video"  # エラー時もデフォルトは通常動画
 
                 # ★ Live 系（schedule/live/completed/archive）の場合、通常の insert は実行しない
@@ -475,17 +547,29 @@ class YouTubeWebSub:
                 if video_type in ["schedule", "live", "completed", "archive"]:
                     # Live 関連 → LiveModule に完全に処理させる
                     if classification_result:
-                        youtube_logger.info(f"🎬 Live関連動画を LiveModule に完全委譲: {video.get('title')} (type={video_type})")
+                        youtube_logger.info(
+                            f"🎬 Live関連動画を LiveModule に完全委譲: {video.get('title')} (type={video_type})"
+                        )
                         try:
-                            live_result = live_module.register_from_classified(classification_result)
+                            live_result = live_module.register_from_classified(
+                                classification_result
+                            )
                             if live_result > 0:
                                 live_registered_count += live_result
-                                youtube_logger.info(f"✅ Live動画をLiveModuleで登録完了: {video_type}（通常動画処理はスキップ）")
+                                youtube_logger.info(
+                                    f"✅ Live動画をLiveModuleで登録完了: {video_type}（通常動画処理はスキップ）"
+                                )
                         except Exception as e:
-                            youtube_logger.error(f"❌ Live動画の LiveModule 登録失敗: {e}")
+                            youtube_logger.error(
+                                f"❌ Live動画の LiveModule 登録失敗: {e}"
+                            )
                 else:
                     # 通常動画（video / premiere）のみ、通常の insert_video を実行
-                    final_published_at = api_scheduled_start_time if api_scheduled_start_time else video["published_at"]
+                    final_published_at = (
+                        api_scheduled_start_time
+                        if api_scheduled_start_time
+                        else video["published_at"]
+                    )
 
                     is_new = database.insert_video(
                         video_id=video["video_id"],
@@ -498,11 +582,15 @@ class YouTubeWebSub:
                     )
                     if is_new:
                         saved_count += 1
-                        youtube_logger.debug(f"[YouTube WebSub] 新規動画を保存: {video['title']} (type={video_type})")
+                        youtube_logger.debug(
+                            f"[YouTube WebSub] 新規動画を保存: {video['title']} (type={video_type})"
+                        )
                     else:
-                        youtube_logger.debug(f"[YouTube WebSub] 既存動画です: {video['title']}")
+                        youtube_logger.debug(
+                            f"[YouTube WebSub] 既存動画です: {video['title']}"
+                        )
 
-            summary = f"✅ 保存完了: 新規 {saved_count}, 既存 {existing_count}"
+            summary = f"[SUCCESS] 保存完了: 新規 {saved_count}, 既存 {existing_count}"
             if live_registered_count > 0:
                 summary += f", Live登録 {live_registered_count}"
             if blacklist_skip_count > 0:
@@ -528,15 +616,6 @@ class YouTubeWebSub:
 
         return (saved_count, live_registered_count)
 
-    def poll_videos(self):
-        """WebSub からポーリングし、キャッシュを更新"""
-        videos = self.fetch_feed()
-        for video in videos:
-            video_id = video['video_id']
-            if video_id not in self.deleted_cache:
-                self.db.insert_video(video_id, video['title'], video['video_url'], video['published_at'], video['channel_name'])
-                # キャッシュ更新を追加
-                self.plugin.update_video_detail_cache(video_id, video)
 
 
 def get_youtube_websub(channel_id: str) -> YouTubeWebSub:

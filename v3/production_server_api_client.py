@@ -12,9 +12,10 @@ API エンドポイント:
 """
 
 import logging
-import requests
-from typing import List, Dict, Any
 import os
+from typing import Any, Dict, List, Optional
+
+import requests
 
 logger = logging.getLogger("AppLogger")
 
@@ -26,7 +27,7 @@ __license__ = "GPLv2"
 class ProductionServerAPIClient:
     """本番サーバーの HTTP API を使用してデータを取得するクライアント"""
 
-    def __init__(self, base_url: str = None, timeout: float = 10.0):
+    def __init__(self, base_url: Optional[str] = None, timeout: float = 10.0):
         """
         初期化
 
@@ -112,7 +113,7 @@ class ProductionServerAPIClient:
         """
         try:
             url = f"{self.base_url}/videos"
-            params = {"channel_id": channel_id, "limit": limit}
+            params: Dict[str, Any] = {"channel_id": channel_id, "limit": limit}
 
             logger.debug(
                 f"📥 Websubサーバー HTTP API リクエスト: {url} params={params}"
@@ -161,7 +162,7 @@ class ProductionServerAPIClient:
         """
         try:
             url = f"{self.base_url}/videos"
-            params = {"channel_id": channel_id, "limit": 1}  # 統計のみなので 1 件取得
+            params: Dict[str, Any] = {"channel_id": channel_id, "limit": 1}  # 統計のみなので 1 件取得
 
             response = requests.get(url, params=params, timeout=self.timeout)
             response.raise_for_status()
@@ -271,7 +272,7 @@ class ProductionServerAPIClient:
 _production_api_client_instance = None
 
 
-def get_production_api_client(base_url: str = None) -> ProductionServerAPIClient:
+def get_production_api_client(base_url: Optional[str] = None) -> ProductionServerAPIClient:
     """
     ProductionServerAPIClient のシングルトンインスタンスを取得
 

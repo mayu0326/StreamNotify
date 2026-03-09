@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 メインスクリプト
+StreamNotify - v3 メインスクリプト
 
 特定の YouTube チャンネルの新着動画を RSS で監視し、
 DB に収集。投稿対象は GUI で選択。
@@ -10,38 +10,40 @@ DB に収集。投稿対象は GUI で選択。
 GUI はマルチスレッドで動作（メインループは継続）
 """
 
-import sys
-import os
-import time
-import signal
-import threading
-import tkinter as tk
 import gc
+import os
+import signal
+import sys
+import threading
+import time
+import tkinter as tk
 from datetime import datetime
 
 # バージョン情報
 from app_version import get_version_info
 
-# プラグインマネージャ関連
-from plugin_manager import PluginManager
+# アセットマネージャ
+from asset_manager import get_asset_manager
 
 # 設定
 from config import OperationMode
 
-# アセットマネージャ
-from asset_manager import get_asset_manager
+# GUI クラスをインポート
+from gui_v3 import StreamNotifyGUI
 
 # ロギング設定
 from logging_config import setup_logging
 
-# GUI クラスをインポート
-from gui_v3 import StreamNotifyGUI
+# プラグインマネージャ関連
+from plugin_manager import PluginManager
 
-# ★ 新: スケジューラ管理（v3.3.0）
+# ★ 新: スケジューラ管理（v3.2.0）
 from schedule_manager import BatchScheduleManager
 
-logger = None  # グローバル変数として後で初期化
-gui_instance = (
+from typing import Any, Dict, List, Optional, Tuple, cast
+
+logger: Any = None  # グローバル変数として後で初期化
+gui_instance: Optional[StreamNotifyGUI] = (
     None  # GUI インスタンスをグローバルで保持（プラグイン判定後のリロード用）
 )
 
@@ -65,7 +67,7 @@ def run_gui(db, plugin_manager, stop_event, bluesky_core=None):
         global gui_instance
         try:
             # GUI オブジェクトの明示的なクリーンアップ
-            if hasattr(gui_instance, "cleanup"):
+            if gui_instance and hasattr(gui_instance, "cleanup"):
                 gui_instance.cleanup()
             gui_instance = None
         except:
@@ -82,7 +84,8 @@ def run_gui(db, plugin_manager, stop_event, bluesky_core=None):
     try:
         root.mainloop()
     except Exception as e:
-        logger.debug(f"GUI mainloop エラー（無視）: {e}")
+        if logger:
+            logger.debug(f"GUI mainloop エラー（無視）: {e}")
     finally:
         # スレッド終了時の最終クリーンアップ
         try:
@@ -96,7 +99,8 @@ def run_gui(db, plugin_manager, stop_event, bluesky_core=None):
 
 def signal_handler(signum, frame):
     """シグナルハンドラ"""
-    logger.info("\n[INFO] 管理画面が閉じられたためアプリケーションを終了します...")
+    if logger:
+        logger.info("\n[INFO] 管理画面が閉じられたためアプリケーションを終了します...")
     sys.exit(0)
 
 
@@ -106,17 +110,17 @@ def main():
     global gui_instance
 
     # バージョン情報をコンソールに出力
-    print(f"StreamNotify on Bluesky {get_version_info()}")
+    print(f"StreamNotify {get_version_info()}")
 
     try:
-        # v3.3+ config_sync logic removed
+        # v3.2.0+ config_sync logic removed
         pass
 
         from config import get_config
 
         config = get_config("settings.env")
         logger = setup_logging(debug_mode=config.debug_mode)
-        logger.info(f"StreamNotify on Bluesky {get_version_info()}")
+        logger.info(f"StreamNotify {get_version_info()}")
         logger.info(f"動作モードは: {config.operation_mode} に設定されています。")
 
         # ★ 設定ログ出力（初期化時に1回だけ）
@@ -176,7 +180,7 @@ def main():
         logger.warning(f"⚠️ YouTubeLiveモジュールの初期化に失敗しました: {e}")
         live_module = None
 
-    # ★ 【v3.3.3】新: Live スケジューラーを初期化
+    # ★ 【v3.2.0】新: Live スケジューラーを初期化
     live_scheduler = None
     try:
         from plugins.youtube.live_scheduler import get_live_scheduler
@@ -207,7 +211,7 @@ def main():
 
                 yt_rss = get_youtube_websub(config.youtube_channel_id)
 
-                # ★ 【v3.3.3】WebSub サーバー接続確認
+                # ★ 【v3.2.0】WebSub サーバー接続確認
                 health_check = yt_rss.health_check()
                 if not health_check:
                     raise Exception("WebSub サーバーに接続できません")
@@ -384,11 +388,11 @@ def main():
     logger.info("✅ アプリケーションの起動が完了しました。 管理画面を開きます。")
 
     polling_count = 0
-    last_post_time = None
+    last_post_time: Optional[datetime] = None
     autopost_warning_shown = False  # セーフモード警告フラグ
     safe_mode_enabled = False  # セーフモード有効フラグ（仕様 5.3）
 
-    # ★ 新: スケジュール管理マネージャーを初期化（v3.3.0）
+    # ★ 新: スケジュール管理マネージャーを初期化（v3.2.0）
     schedule_mgr = BatchScheduleManager(db)
     logger.info("✅ バッチスケジュール管理を初期化しました")
 
@@ -599,7 +603,7 @@ def main():
 
                 now = datetime.now()
 
-                # ★ 新: スケジュール済み動画の投稿チェック（v3.3.0）
+                # ★ 新: スケジュール済み動画の投稿チェック（v3.2.0）
                 scheduled_video = schedule_mgr.get_next_scheduled_video()
                 if scheduled_video:
                     logger.info(
@@ -630,7 +634,7 @@ def main():
                     # 投稿間隔チェック
                     should_post = (
                         last_post_time is None
-                        or (now - last_post_time).total_seconds()
+                        or (now - cast(datetime, last_post_time)).total_seconds()
                         >= config.autopost_interval_minutes * 60
                     )
 
@@ -672,13 +676,13 @@ def main():
                         else:
                             logger.info("🤖 AUTOPOST: 投稿対象動画がありません。")
                     else:
-                        elapsed = (now - last_post_time).total_seconds() / 60
+                        elapsed = (now - cast(datetime, last_post_time)).total_seconds() / 60
                         remaining = config.autopost_interval_minutes - elapsed
                         logger.info(
                             f"🤖 AUTOPOST: 投稿間隔制限中。次の投稿まで約 {remaining:.1f} 分待機。"
                         )
 
-            # ★ 新: YouTube Live 動的ポーリング間隔に対応（v3.3.0+ 改訂版）
+            # ★ 新: YouTube Live 動的ポーリング間隔に対応（v3.2.0+ 改訂版）
             # live_module が有効な場合は、キャッシュ状態に応じた動的間隔を計算
             # NO_LIVE 時は 0（ポーリングロジック休止）を返す
             next_live_poll_interval = config.poll_interval_minutes
@@ -722,8 +726,8 @@ def main():
             except Exception as plugin_error:
                 logger.debug(f"[ニコニコプラグイン停止] エラー: {plugin_error}")
 
-        # ★ 【v3.3.3】Live スケジューラーをシャットダウン
-        # Live Scheduler shutdown logic removed (v3.3.3)
+        # ★ 【v3.2.0】Live スケジューラーをシャットダウン
+        # Live Scheduler shutdown logic removed (v3.2.0)
 
         logger.info("🛑 アプリケーションをシャットダウン中...")
         stop_event.set()

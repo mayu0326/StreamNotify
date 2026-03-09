@@ -6,10 +6,10 @@ Batch Schedule Manager - 複数動画の投稿スケジュール管理
 複数の動画に対して、指定した間隔で投稿予定時刻を自動計算・管理します。
 """
 
-from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Optional
 import logging
 import sqlite3
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("ScheduleManager")
 
@@ -406,7 +406,7 @@ class BatchScheduleManager:
         video_id: str,
         executed_at: datetime,
         success: bool,
-        error_message: str = None,
+        error_message: Optional[str] = None,
     ) -> bool:
         """
         スケジュール投稿実行結果を記録
@@ -464,8 +464,8 @@ class BatchScheduleManager:
 
     def get_schedule_history(
         self,
-        video_id: str = None,
-        status: str = None,
+        video_id: Optional[str] = None,
+        status: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict]:
         """
@@ -485,7 +485,7 @@ class BatchScheduleManager:
             cursor = conn.cursor()
 
             query = "SELECT * FROM schedule_history WHERE 1=1"
-            params = []
+            params: List[Any] = []
 
             if video_id:
                 query += " AND video_id = ?"

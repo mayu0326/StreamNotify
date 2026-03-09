@@ -1,17 +1,18 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 画像管理モジュール
+StreamNotify - v3 画像管理モジュール
 
 サムネイル画像の取得・管理機能を提供。
 GUI、プラグイン、その他のモジュールから共通利用可能。
 """
 
-import logging
-import requests
-from pathlib import Path
-from typing import Optional, Tuple, List
 import io
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import requests
 
 # Pillowはオプション（画像情報取得機能で使用）
 try:
@@ -25,7 +26,7 @@ except ImportError:
     )
 
 
-# ★ v3.3.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
+# ★ v3.2.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
 def _get_logger():
     """ロギングプラグイン対応のロガー取得（ThumbnailsLogger優先、未導入時はAppLogger）"""
     thumbnails_logger = logging.getLogger("ThumbnailsLogger")
@@ -50,7 +51,7 @@ def get_youtube_thumbnail_url(video_id: str) -> Optional[str]:
     YouTube のサムネイル URL を複数品質から取得
 
     複数の品質レベルを試行し、最初に取得できた URL を返す。
-    ★ v3.3.0+: パフォーマンス最適化 - デフォルト URL を直接返す
+    ★ v3.2.0+: パフォーマンス最適化 - デフォルト URL を直接返す
     （HTTP リクエストなしで URL を構築）
 
     優先度: maxres (1280x720) → sd (640x480) → hq (480x360) →
@@ -176,10 +177,10 @@ class ImageManager:
         default_path = self.base_dir / "default" / "noimage.png"
         try:
             with open(default_path, "rb") as f:
-                logger.info(f"✅ デフォルト画像を使用: {default_path}")
+                logger.info(f"[SUCCESS] デフォルト画像を使用: {default_path}")
                 return f.read()
         except Exception as e:
-            logger.error(f"❌ デフォルト画像の読み込み失敗: {e}")
+            logger.error(f"[ERROR] WebSub 画像保存エラー: {e}")
         return None
 
     def save_image_from_url(
@@ -214,10 +215,10 @@ class ImageManager:
             save_path.parent.mkdir(parents=True, exist_ok=True)
             with open(save_path, "wb") as f:
                 f.write(image_data)
-            logger.info(f"✅ 画像保存成功: {save_path}")
+            logger.info(f"[SUCCESS] 画像保存成功: {save_path}")
             return filename
         except Exception as e:
-            logger.error(f"❌ 画像保存失敗: {save_path} - {e}")
+            logger.error(f"[ERROR] 画像保存失敗: {save_path} - {e}")
         return None
 
     def _detect_image_extension(self, image_data: bytes) -> str:
@@ -264,7 +265,7 @@ class ImageManager:
             ]
             return sorted(files)
         except Exception as e:
-            logger.error(f"❌ 画像一覧取得失敗: {dir_path} - {e}")
+            logger.error(f"[ERROR] 画像一覧取得失敗: {dir_path} - {e}")
         return []
 
     def delete_image(self, site: str, mode: str, filename: str) -> bool:
@@ -283,12 +284,12 @@ class ImageManager:
         try:
             if file_path.exists():
                 file_path.unlink()
-                logger.info(f"✅ 画像削除成功: {file_path}")
+                logger.info(f"[SUCCESS] 画像削除成功: {file_path}")
                 return True
             else:
-                logger.warning(f"⚠️ 画像ファイルが見つかりません: {file_path}")
+                logger.warning(f"[WARN] 画像ファイルが見つかりません: {file_path}")
         except Exception as e:
-            logger.error(f"❌ 画像削除失敗: {file_path} - {e}")
+            logger.error(f"[ERROR] 画像削除失敗: {file_path} - {e}")
         return False
 
     def delete_images_by_video_id(self, site: str, image_filename: str) -> bool:
@@ -305,14 +306,14 @@ class ImageManager:
             いずれかの削除に成功した場合 True、全て失敗した場合 False
         """
         if not image_filename:
-            logger.debug("⚠️ 画像ファイル名が指定されていません")
+            logger.debug("[INFO] 画像ファイル名が指定されていません")
             return False
 
         deleted_any = False
 
         # import モードの画像を削除
         if self.delete_image(site, "import", image_filename):
-            logger.info(f"✅ import モード画像を削除: {site}/{image_filename}")
+            logger.info(f"[INFO] import モード画像を削除: {site}/{image_filename}")
             deleted_any = True
 
         # autopost モードの画像も削除（存在する場合）
@@ -320,10 +321,14 @@ class ImageManager:
         if autopost_path.exists():
             try:
                 autopost_path.unlink()
-                logger.info(f"✅ autopost モード画像を削除: {site}/{image_filename}")
+                logger.info(
+                    f"[INFO] autopost モード画像を削除: {site}/{image_filename}"
+                )
                 deleted_any = True
             except Exception as e:
-                logger.warning(f"⚠️ autopost モード画像削除失敗: {autopost_path} - {e}")
+                logger.warning(
+                    f"[WARN] autopost モード画像削除失敗: {autopost_path} - {e}"
+                )
 
         return deleted_any
 
@@ -371,7 +376,7 @@ class ImageManager:
                     "file_size_mb": round(file_size / (1024 * 1024), 2),
                 }
         except Exception as e:
-            logger.error(f"❌ 画像情報取得失敗: {file_path} - {e}")
+            logger.error(f"[ERROR] 画像情報取得失敗: {file_path} - {e}")
         return None
 
     def validate_image(
@@ -441,12 +446,14 @@ class ImageManager:
             リサイズ後のファイル名、失敗時は None
         """
         if not PIL_AVAILABLE:
-            logger.error("❌ Pillowがインストールされていないため、リサイズできません")
+            logger.error(
+                "[ERROR] Pillowがインストールされていないため、リサイズできません"
+            )
             return None
 
         input_path = self.base_dir / site / mode / filename
         if not input_path.exists():
-            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            logger.error(f"[ERROR] ファイルが見つかりません: {input_path}")
             return None
 
         try:
@@ -456,7 +463,7 @@ class ImageManager:
 
                 # リサイズが必要か確認
                 if img.width <= max_width and img.height <= max_height:
-                    logger.info(f"✅ リサイズ不要: {img.width}x{img.height}")
+                    logger.info(f"[INFO] リサイズ不要: {img.width}x{img.height}")
                     return filename
 
                 # アスペクト比を維持してリサイズ
@@ -468,12 +475,12 @@ class ImageManager:
                 # 保存
                 img.save(output_path, optimize=True, quality=85)
                 logger.info(
-                    f"✅ リサイズ成功: {img.width}x{img.height} → {output_path}"
+                    f"[SUCCESS] リサイズ成功: {img.width}x{img.height} → {output_path}"
                 )
                 return output_name
 
         except Exception as e:
-            logger.error(f"❌ リサイズ失敗: {input_path} - {e}")
+            logger.error(f"[ERROR] リサイズ失敗: {input_path} - {e}")
         return None
 
     def convert_to_format(
@@ -498,12 +505,12 @@ class ImageManager:
             変換後のファイル名、失敗時は None
         """
         if not PIL_AVAILABLE:
-            logger.error("❌ Pillowがインストールされていないため、変換できません")
+            logger.error("[ERROR] Pillowがインストールされていないため、変換できません")
             return None
 
         input_path = self.base_dir / site / mode / filename
         if not input_path.exists():
-            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            logger.error(f"[ERROR] ファイルが見つかりません: {input_path}")
             return None
 
         try:
@@ -529,7 +536,7 @@ class ImageManager:
                 output_path = self.base_dir / site / mode / output_filename
 
                 # 保存オプション
-                save_kwargs = {"format": target_format.upper()}
+                save_kwargs: Dict[str, Any] = {"format": target_format.upper()}
                 if target_format.upper() == "JPEG":
                     save_kwargs["quality"] = 85
                     save_kwargs["optimize"] = True
@@ -539,11 +546,11 @@ class ImageManager:
                     save_kwargs["quality"] = 85
 
                 img.save(output_path, **save_kwargs)
-                logger.info(f"✅ 変換成功: {target_format} → {output_path}")
+                logger.info(f"[SUCCESS] 変換成功: {target_format} → {output_path}")
                 return output_filename
 
         except Exception as e:
-            logger.error(f"❌ 変換失敗: {input_path} - {e}")
+            logger.error(f"[ERROR] 変換失敗: {input_path} - {e}")
         return None
 
     def create_thumbnail(
@@ -569,13 +576,13 @@ class ImageManager:
         """
         if not PIL_AVAILABLE:
             logger.error(
-                "❌ Pillowがインストールされていないため、サムネイル生成できません"
+                "[ERROR] Pillowがインストールされていないため、サムネイル生成できません"
             )
             return None
 
         input_path = self.base_dir / site / mode / filename
         if not input_path.exists():
-            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            logger.error(f"[ERROR] ファイルが見つかりません: {input_path}")
             return None
 
         try:
@@ -593,11 +600,13 @@ class ImageManager:
                 output_path = self.base_dir / site / mode / output_filename
 
                 img.save(output_path, optimize=True, quality=85)
-                logger.info(f"✅ サムネイル生成成功: {thumb_size} → {output_path}")
+                logger.info(
+                    f"[SUCCESS] サムネイル生成成功: {thumb_size} → {output_path}"
+                )
                 return output_filename
 
         except Exception as e:
-            logger.error(f"❌ サムネイル生成失敗: {input_path} - {e}")
+            logger.error(f"[ERROR] サムネイル生成失敗: {input_path} - {e}")
         return None
 
     def optimize_image(
@@ -622,12 +631,14 @@ class ImageManager:
             最適化後のファイル名、失敗時は None
         """
         if not PIL_AVAILABLE:
-            logger.error("❌ Pillowがインストールされていないため、最適化できません")
+            logger.error(
+                "[ERROR] Pillowがインストールされていないため、最適化できません"
+            )
             return None
 
         input_path = self.base_dir / site / mode / filename
         if not input_path.exists():
-            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            logger.error(f"[ERROR] ファイルが見つかりません: {input_path}")
             return None
 
         try:
@@ -654,7 +665,7 @@ class ImageManager:
                         with open(output_path, "wb") as f:
                             f.write(buffer.getvalue())
                         logger.info(
-                            f"✅ 最適化成功: {size_kb:.1f}KB (品質: {quality}) → {output_path}"
+                            f"[SUCCESS] 最適化成功: {size_kb:.1f}KB (品質: {quality}) → {output_path}"
                         )
                         return output_name
 
@@ -662,14 +673,14 @@ class ImageManager:
 
                 # 最小品質でも目標サイズを超える場合は警告
                 logger.warning(
-                    f"⚠️ 目標サイズ {max_file_size_kb}KB に到達できませんでした（現在: {size_kb:.1f}KB）"
+                    f"[WARN] 目標サイズ {max_file_size_kb}KB に到達できませんでした（現在: {size_kb:.1f}KB）"
                 )
                 with open(output_path, "wb") as f:
                     f.write(buffer.getvalue())
                 return output_name
 
         except Exception as e:
-            logger.error(f"❌ 最適化失敗: {input_path} - {e}")
+            logger.error(f"[ERROR] 最適化失敗: {input_path} - {e}")
         return None
 
     def download_and_save_thumbnail(
@@ -688,7 +699,7 @@ class ImageManager:
             保存されたファイル名、失敗時は None
         """
         if not thumbnail_url:
-            logger.warning("⚠️ サムネイルURLが指定されていません")
+            logger.warning("[WARN] サムネイルURLが指定されていません")
             return None
 
         # 動画IDをサニタイズ（ファイル名として不適切な文字を除去）
@@ -710,7 +721,7 @@ class ImageManager:
                 is_valid, error_msg = self.validate_image(image_data, max_size_mb=10.0)
                 if not is_valid:
                     logger.error(
-                        f"❌ ダウンロードしたファイルは有効な画像ではありません: {error_msg}"
+                        f"[ERROR] ダウンロードしたファイルは有効な画像ではありません: {error_msg}"
                     )
                     temp_path.unlink()  # 無効なファイルを削除
                     return None
@@ -725,12 +736,14 @@ class ImageManager:
                         final_path.unlink()
                     except Exception as e:
                         logger.warning(
-                            f"⚠️ 既存ファイルの削除に失敗: {final_path} - {e}"
+                            f"[WARN] 既存ファイルの削除に失敗: {final_path} - {e}"
                         )
 
                 # ファイル名を変更
                 temp_path.rename(final_path)
-                logger.info(f"✅ サムネイル保存完了: {final_path}")
+                logger.info(
+                    f"[SUCCESS] WebSub 用サムネイル保存: {len(image_data)} bytes"
+                )
                 return final_filename
 
         return None

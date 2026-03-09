@@ -1,14 +1,14 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 ロギング設定
+StreamNotify - v3 ロギング設定
 
 ロギングの設定を一元管理するモジュール。
 ロギングプラグインが導入されている場合は、そちらの設定を優先的に使用。
 """
 
-import os
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 

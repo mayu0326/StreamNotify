@@ -1,16 +1,17 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 YouTube RSS 管理
+StreamNotify - v3 YouTube RSS 管理
 
 YouTube チャンネルの RSS を取得・パース・DB に保存する。
 （画像処理は thumbnails/youtube_thumb_utils.py の YouTubeThumbPlugin で管理）
 """
 
-import feedparser
 import logging
-from typing import List, Dict
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Tuple
+
+import feedparser
 from image_manager import get_youtube_thumbnail_url
 
 logger = logging.getLogger("AppLogger")
@@ -73,7 +74,7 @@ class YouTubeRSS:
                     logger.warning(f"⚠️ RSS 日時の JST 変換失敗、元の値を使用: {e}")
                     published_at_jst = rss_published_at
 
-                # ★ v3.3.0: channel_name が空の場合、キャッシュまたは API から取得
+                # ★ v3.2.0: channel_name が空の場合、キャッシュまたは API から取得
                 channel_name = entry.author if hasattr(entry, "author") else ""
                 if not channel_name:
                     try:
@@ -142,15 +143,15 @@ class YouTubeRSS:
         ⚠️ NOTE: 新規動画の画像ダウンロード・保存は
         thumbnails/youtube_thumb_utils.py の YouTubeThumbPlugin で実行されます。
 
-        ★ v3.3.0+ YouTube API優先: RSS登録後、YouTube API で最新情報を確認し、
+        ★ v3.2.0+ YouTube API優先: RSS登録後、YouTube API で最新情報を確認し、
            scheduledStartTime が存在する場合は上書きします。
 
-        ★ v3.3.0+ YouTubeVideoClassifier + LiveModule 統合:
+        ★ v3.2.0+ YouTubeVideoClassifier + LiveModule 統合:
            - YouTubeVideoClassifier で動画を分類（schedule/live/completed/archive vs 通常動画）
            - Live関連 → LiveModule.register_from_classified() で登録
            - 通常動画 → 既存処理で続行
 
-        ★ v3.4.1+ 重複排除: video_id + タイトル + live_status + チャンネル名 が同じ場合のみ除外
+        ★ v3.2.0+ 重複排除: video_id + タイトル + live_status + チャンネル名 が同じ場合のみ除外
 
         Args:
             database: Database オブジェクト
@@ -192,11 +193,11 @@ class YouTubeRSS:
             youtube_logger.warning("deleted_video_cache モジュールが見つかりません")
             deleted_cache = None
 
-        # ★ v3.4.1+: 重複排除処理（RSS の videos が取得された直後に実行）
+        # ★ v3.2.0+: 重複排除処理（RSS の videos が取得された直後に実行）
         # video_id + タイトル + live_status + チャンネル名 が同じ場合のみ除外
         # NOTE: このポイントでは live_status はまだ "none" （classifier で分類される前）
         # 最終的な live_status は分類後に確定するため、フィルタリング後に分類を実行
-        video_groups = {}
+        video_groups: Dict[Tuple[str, str, str, str], List[Dict[str, Any]]] = {}
         for video in videos:
             # グループキー：video_id + タイトル + live_status + チャンネル名
             # この段階では live_status = "none"（まだ分類前）
@@ -281,7 +282,7 @@ class YouTubeRSS:
                     blacklist_skip_count += 1
                     continue
 
-                # ★ 【v3.3.2】新規動画のみを ID のみで登録
+                # ★ 【v3.2.0】新規動画のみを ID のみで登録
                 # 既存動画は処理をスキップし、API 呼び出しを削減
                 existing_video = database.get_video_by_id(video["video_id"])
                 if existing_video:
@@ -375,7 +376,7 @@ class YouTubeRSS:
 
                 # ★ 重要: 先に分類を行い、Live 系か通常動画か判定
                 # これにより、Live系は通常の insert_video をスキップ、LiveModule に任せられる
-                # ★ 【修正 v3.4.3】既に classifier.classify_video() で API を 1 回呼び出し済み
+                # ★ 【修正 v3.2.0】既に classifier.classify_video() で API を 1 回呼び出し済み
                 # → insert_video() では classifier 結果を再利用し、二重 API 呼び出しを防止
                 video_type = None
                 classification_result = None
@@ -425,7 +426,7 @@ class YouTubeRSS:
                             )
                 else:
                     # 通常動画（video / premiere）のみ、通常の insert_video を実行
-                    # ★ 【修正 v3.4.3】classification_result から分類情報を取得・再利用
+                    # ★ 【修正 v3.2.0】classification_result から分類情報を取得・再利用
                     # insert_video() 内の post_video() で再度 API を叩くことを防止
                     final_published_at = (
                         api_scheduled_start_time
@@ -466,7 +467,7 @@ class YouTubeRSS:
                                     final_published_at  # フォールバック
                                 )
 
-                    # フォールバック: classifier が失敗したか representative_time_utc が空の場合
+                            # フォールバック: classifier が失敗したか representative_time_utc が空の場合
                             representative_time_utc = video.get(
                                 "published_at"
                             )  # RSS では already JST
@@ -518,27 +519,6 @@ class YouTubeRSS:
 
         return (saved_count, live_registered_count)
 
-    def poll_videos(self):
-        """RSSフィードをポーリングし、キャッシュを更新"""
-        videos = self.fetch_feed()
-        for video in videos:
-            video_id = video["video_id"]
-            if video_id not in self.deleted_cache:
-                # ★ 【新】通常動画の基準時刻は published_at
-                representative_time_utc = video.get("published_at")
-                self.db.insert_video(
-                    video_id,
-                    video["title"],
-                    video["video_url"],
-                    video["published_at"],
-                    video["channel_name"],
-                    representative_time_utc=representative_time_utc,
-                    representative_time_jst=video[
-                        "published_at"
-                    ],  # RSS も UTC で返されるため、同じ値を使用
-                )
-                # キャッシュ更新を追加
-                self.plugin.update_video_detail_cache(video_id, video)
 
 
 def get_youtube_rss(channel_id: str) -> YouTubeRSS:

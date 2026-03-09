@@ -6,10 +6,11 @@ Schedule View Tab - 投稿スケジュール確認・管理タブ
 スケジュール済みの動画一覧を表示し、編集・キャンセル機能を提供します。
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox
-from datetime import datetime
 import logging
+import tkinter as tk
+from datetime import datetime
+from tkinter import messagebox, ttk
+from typing import Any, cast
 
 logger = logging.getLogger("GUILogger")
 
@@ -90,7 +91,7 @@ class ScheduleViewTab:
         scrollbar = ttk.Scrollbar(
             tree_frame, orient=tk.VERTICAL, command=self.tree.yview
         )
-        self.tree.configure(yscroll=scrollbar.set)
+        self.tree.configure(yscrollcommand=scrollbar.set)
 
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -212,10 +213,10 @@ class ScheduleViewTab:
             return
 
         # 編集ダイアログ（簡易版）
-        dialog = tk.Toplevel(self.frame)
+        dialog = tk.Toplevel(self.frame.winfo_toplevel())
         dialog.title(f"スケジュール編集 - {video_id[:20]}")
         dialog.geometry("400x200")
-        dialog.transient(self.frame)
+        dialog.transient(cast(tk.Toplevel, self.frame.winfo_toplevel()))
         dialog.grab_set()
 
         ttk.Label(dialog, text="新しい投稿予定時刻:", font=("Arial", 11)).pack(

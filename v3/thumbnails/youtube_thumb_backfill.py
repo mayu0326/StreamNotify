@@ -30,7 +30,7 @@ from database import get_database
 from image_manager import get_image_manager, get_youtube_thumbnail_url
 
 
-# ★ v3.3.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
+# ★ v3.2.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
 def _get_logger():
     """ロギングプラグイン対応のロガー取得（ThumbnailsLogger優先、未導入時はAppLogger）"""
     thumbnails_logger = logging.getLogger("ThumbnailsLogger")

@@ -8,7 +8,7 @@ YouTube動画の重複排除ロジック
 """
 
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
@@ -53,7 +53,7 @@ def get_video_priority(video: Dict[str, Any]) -> tuple:
             premiere_priority = 1  # パース失敗時は通常動画扱い
 
     # 優先度を計算（大きいほど優先度が高い）
-    # v3.3.0: 5カテゴリ対応
+    # v3.2.0: 5カテゴリ対応
     # 優先度: archive(4) > schedule(3) > live(3) > completed(2) > video(1)
     if content_type == "archive":
         priority = 4  # アーカイブ（LIVE終了後の録画）
@@ -123,7 +123,7 @@ def select_best_video(videos: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 # テスト用サンプルデータ
 if __name__ == "__main__":
-    samples = [
+    samples: List[Dict[str, Any]] = [
         {
             "video_id": "vid1",
             "content_type": "video",

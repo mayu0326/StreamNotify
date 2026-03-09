@@ -14,21 +14,22 @@ YouTube Data API プラグイン（クォータ対応版）
 - videos.list（詳細取得）: 1ユニット（最大50件/リクエスト）
 """
 
+import json
+import logging
 import os
 import sys
-import logging
 import time
-import json
-from typing import Dict, Any, Optional, Tuple, List
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import requests
 
 # 相対インポート対応（親パッケージから）
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from plugin_interface import NotificationPlugin
 from database import Database
 from image_manager import get_youtube_thumbnail_url
+from plugin_interface import NotificationPlugin
 
 logger = logging.getLogger("AppLogger")
 
@@ -45,6 +46,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
     """YouTube Data API 連携プラグイン（クォータ対応）"""
 
     _instance = None
+    _initialized = False
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -79,10 +81,10 @@ class YouTubeAPIPlugin(NotificationPlugin):
         # APIコスト管理
         self.daily_quota = 10000
         self.daily_cost = 0
-        self.last_request_time = 0
+        self.last_request_time = 0.0
         self.request_interval = 0.5  # 秒（リクエスト間最小間隔）
 
-        # ★ 【新 v3.4.3】クォータ超過フラグ（403 エラー時に設定）
+        # ★ 【新 v3.2.0】クォータ超過フラグ（403 エラー時に設定）
         self.quota_exceeded = False
 
         # ビデオ詳細キャッシュ
@@ -119,7 +121,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
         return "YouTubeAPI 連携プラグイン"
 
     def get_version(self) -> str:
-        return "0.2.0"
+        return "0.2.1"
 
     def get_description(self) -> str:
         return "YouTube Data API でチャンネル解決と動画詳細取得を行うプラグイン（クォータ対応）"
@@ -361,7 +363,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
         Returns:
             JSONレスポンス、失敗時は None
         """
-        # ★ 【新 v3.4.3】クォータ超過フラグが設定されていればスキップ
+        # ★ 【新 v3.2.0】クォータ超過フラグが設定されていればスキップ
         if self.quota_exceeded:
             logger.warning(
                 f"⏸️ クォータ超過のため、API 呼び出しをスキップ: {operation}"
@@ -383,7 +385,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
                 )
                 resp = self.session.get(url, params=params_with_key, timeout=15)
 
-                # ★ 【新 v3.4.3】403 エラー = クォータ超過の信号 → 即座に中止
+                # ★ 【新 v3.2.0】403 エラー = クォータ超過の信号 → 即座に中止
                 if resp.status_code == 403:
                     logger.error(
                         f"❌ 403 Forbidden: YouTube API クォータ超過と思われます。全 API 呼び出しを停止します"
@@ -722,7 +724,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
         """
         【統合分類ロジック】動画の種別と状態を判別（content_type, live_status, is_premiere）
 
-        ★ v3.3.0 から 5カテゴリ統一分類に対応：
+        ★ v3.2.0 から 5カテゴリ統一分類に対応：
           - "video": 通常動画
           - "archive": LIVE終了後のアーカイブ
           - "schedule": LIVE予約枠（upcoming）

@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - 削除済み動画除外リスト管理
+StreamNotify v3 - 削除済み動画除外リスト管理
 
 削除済み動画の ID をサービス別に JSON ファイルで管理。
 新着動画検出時にこのリストをチェック。
@@ -14,11 +14,10 @@ Stream notify on Bluesky - 削除済み動画除外リスト管理
 }
 """
 
-import os
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("AppLogger")
 
@@ -27,7 +26,7 @@ __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
 __license__ = "GPLv3"
 
 # グローバル キャッシュインスタンス
-_deleted_video_cache = None
+_deleted_video_cache: Optional["DeletedVideoCache"] = None
 
 
 class DeletedVideoCache:
@@ -42,13 +41,15 @@ class DeletedVideoCache:
         """
         self.cache_file = Path(cache_file)
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
-        self.data = {}
+        self.data: Dict[str, List[str]] = {}
         self._load()
 
     def _load(self) -> None:
         """JSON ファイルから読み込み"""
         if not self.cache_file.exists():
-            logger.debug(f"除外動画リスト JSON が存在しません。新規作成します: {self.cache_file}")
+            logger.debug(
+                f"除外動画リスト JSON が存在しません。新規作成します: {self.cache_file}"
+            )
             self._create_default()
             self._save()
             return
@@ -126,7 +127,9 @@ class DeletedVideoCache:
 
         # 重複チェック
         if video_id in self.data[source_lower]:
-            logger.debug(f"既に除外動画リスト登録済みです: {video_id} (source: {source})")
+            logger.debug(
+                f"既に除外動画リスト登録済みです: {video_id} (source: {source})"
+            )
             return True
 
         # リストに追加
@@ -209,7 +212,9 @@ class DeletedVideoCache:
         return {source_lower: self.data.get(source_lower, [])}
 
 
-def get_deleted_video_cache(cache_file: str = "data/deleted_videos.json") -> DeletedVideoCache:
+def get_deleted_video_cache(
+    cache_file: str = "data/deleted_videos.json",
+) -> DeletedVideoCache:
     """グローバル キャッシュインスタンスを取得（シングルトン）"""
     global _deleted_video_cache
     if _deleted_video_cache is None:

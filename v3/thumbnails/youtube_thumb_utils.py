@@ -10,18 +10,18 @@ Niconico の niconico_ogp_utils.py に相当する内部モジュール
 """
 
 import logging
-import sys
 import os
+import sys
 
 # 親ディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from youtube_core.youtube_rss import YouTubeRSS
-from image_manager import get_image_manager
 from database import get_database
+from image_manager import get_image_manager
+from youtube_core.youtube_rss import YouTubeRSS
 
 
-# ★ v3.3.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
+# ★ v3.2.0: ロギングプラグイン導入時はThumbnailsLogger、未導入時はAppLoggerにフォールバック
 def _get_logger():
     """ロギングプラグイン対応のロガー取得（ThumbnailsLogger優先、未導入時はAppLogger）"""
     thumbnails_logger = logging.getLogger("ThumbnailsLogger")
@@ -61,8 +61,8 @@ class YouTubeThumbManager:
             youtube_logger = logging.getLogger("YouTubeLogger")
 
             # image_manager と database のロガーを一時的に YouTubeLogger に変更
-            import image_manager as im_module
             import database as db_module
+            import image_manager as im_module
 
             original_im_logger = im_module.logger
             original_db_logger = db_module.logger

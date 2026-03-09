@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 YouTube Live スケジューラー機構
+StreamNotify - v3 YouTube Live スケジューラー機構
 
-★ 【v3.3.3】新機能：開始予定時刻付近のみ API を呼び出す
+★ 【v3.2.0】新機能：開始予定時刻付近のみ API を呼び出す
 
 APScheduler を使用して、Live 動画の開始予定時刻 30 分前に
 API を呼び出し、詳細情報を取得・DB 更新する。
@@ -12,9 +12,9 @@ RSS・WebSub 両モード対応。
 """
 
 import logging
-from typing import Optional
 from datetime import datetime, timedelta, timezone
 from threading import RLock
+from typing import Optional
 
 logger = logging.getLogger("AppLogger")
 
@@ -48,8 +48,8 @@ class LiveScheduler:
     def _init_scheduler(self):
         """APScheduler を初期化"""
         try:
-            from apscheduler.schedulers.background import BackgroundScheduler
             from apscheduler.executors.pool import ThreadPoolExecutor
+            from apscheduler.schedulers.background import BackgroundScheduler
 
             # バックグラウンドスケジューラーを作成
             # max_workers=2: 同時実行タスク数を制限（API クォータ保護）
@@ -79,7 +79,7 @@ class LiveScheduler:
         title: str = "",
     ) -> bool:
         """
-        ★ 【v3.3.3】Live 動画の API 取得をスケジュール
+        ★ 【v3.2.0】Live 動画の API 取得をスケジュール
 
         開始予定時刻の 30 分前に API を呼び出し、詳細情報を取得する。
 
@@ -161,7 +161,7 @@ class LiveScheduler:
 
     def cancel_schedule(self, video_id: str) -> bool:
         """
-        ★ 【v3.3.3】Live 動画の API 取得スケジュールをキャンセル
+        ★ 【v3.2.0】Live 動画の API 取得スケジュールをキャンセル
 
         Args:
             video_id: YouTube 動画 ID
@@ -190,7 +190,7 @@ class LiveScheduler:
 
     def _fetch_and_update(self, video_id: str, title: str = ""):
         """
-        ★ 【v3.3.3】スケジュール時刻に実行される処理
+        ★ 【v3.2.0】スケジュール時刻に実行される処理
 
         API から最新の動画詳細を取得し、DB を更新する。
 
@@ -264,7 +264,7 @@ def get_live_scheduler(
     database=None, classifier=None, live_module=None
 ) -> Optional[LiveScheduler]:
     """
-    ★ 【v3.3.3】Live スケジューラーのシングルトンインスタンスを取得
+    ★ 【v3.2.0】Live スケジューラーのシングルトンインスタンスを取得
 
     初回呼び出し時に初期化される。
 

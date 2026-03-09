@@ -9,22 +9,23 @@
 - ユーザー名自動取得（RSS <dc:creator> > 静画API > ユーザーページ > 環境変数 > ユーザーID）
 """
 
-import os
 import logging
-import time
+import os
 import re
-from typing import Dict, Any, Optional
-from threading import Thread, Event
+import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
+from threading import Event, Thread
+from typing import Any, Dict, Optional
+
+import defusedxml.ElementTree as dET
 import feedparser
 import requests
-import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
-from image_manager import get_image_manager
-from thumbnails import get_niconico_ogp_url
-
-from plugin_interface import NotificationPlugin
 from database import Database
+from image_manager import get_image_manager
+from plugin_interface import NotificationPlugin
+from thumbnails import get_niconico_ogp_url
 
 logger = logging.getLogger("NiconicoLogger")
 
@@ -43,7 +44,11 @@ class NiconicoPlugin(NotificationPlugin):
     """ニコニコ動画 RSS取得プラグイン"""
 
     def __init__(
-        self, user_id: str, poll_interval: int, db: Database, user_name: str = None
+        self,
+        user_id: str,
+        poll_interval: int,
+        db: Database,
+        user_name: Optional[str] = None,
     ):
         """
         初期化
@@ -59,13 +64,13 @@ class NiconicoPlugin(NotificationPlugin):
         self.poll_interval_sec = self.poll_interval_min * 60
         self.db = db
         self.shutdown_event = Event()
-        self._monitor_thread = None
-        self.last_video_id = None
-        self._validation_error = None
+        self._monitor_thread: Optional[Thread] = None
+        self.last_video_id: Optional[str] = None
+        self._validation_error: Optional[str] = None
         self.image_manager = get_image_manager()
 
         # ユーザー名キャッシング（初回のみ取得）
-        self._user_name_cache = None
+        self._user_name_cache: Optional[str] = None
         self._user_name_env = user_name or os.getenv("NICONICO_USER_NAME", "")
 
         # バリデーション
@@ -75,7 +80,7 @@ class NiconicoPlugin(NotificationPlugin):
         """ユーザーID をバリデーション"""
         if not self.user_id:
             self._validation_error = "ユーザーID が空です"
-            logger.warning(f"[バリデーション] {self._validation_error}")
+            logger.warning(f"[WARN] [バリデーション] {self._validation_error}")
             return
 
         if not re.match(NICONICO_USER_ID_PATTERN, self.user_id):
@@ -85,7 +90,7 @@ class NiconicoPlugin(NotificationPlugin):
             logger.warning(f"[バリデーション] {self._validation_error}")
             return
 
-        logger.debug(f"[バリデーション] ユーザーID OK: {self.user_id}")
+        logger.debug(f"[SUCCESS] [バリデーション] ユーザーID OK: {self.user_id}")
         self._validation_error = None
 
     def _get_user_name(self) -> str:
@@ -200,8 +205,8 @@ class NiconicoPlugin(NotificationPlugin):
             response = requests.get(url, timeout=SEIGA_API_TIMEOUT)
             response.raise_for_status()
 
-            # XML をパース
-            root = ET.fromstring(response.content)
+            # XML をパース（XXE対策のため defusedxml を使用）
+            root = dET.fromstring(response.content)
 
             # <nickname> 要素を検索（namespace 考慮）
             nickname_elem = root.find(".//nickname")
@@ -250,9 +255,10 @@ class NiconicoPlugin(NotificationPlugin):
             # og:title メタタグからユーザー名を抽出
             og_title = soup.find("meta", property="og:title")
             if og_title:
-                title = og_title.get("content", "")
+                title_raw = og_title.get("content", "")
+                title = title_raw[0] if isinstance(title_raw, list) else (title_raw or "")
                 # "ユーザー名 - ニコニコ" のような形式から名前を抽出
-                match = re.search(r"^([^ ]+)\s*[-|]", title)
+                match = re.search(r"^([^ ]+)\s*[-|]", str(title))
                 if match:
                     user_name = match.group(1).strip()
                     logger.info(f"[ユーザーページ取得成功] {user_name}")
@@ -398,10 +404,12 @@ class NiconicoPlugin(NotificationPlugin):
                         video = self._entry_to_video_dict(video_entry)
                         is_new = self.post_video(video)
                         if is_new:
-                            niconico_logger.info(f"✅ 1 個の新着動画を保存しました")
+                            niconico_logger.info(
+                                f"[SUCCESS] 1 個の新着動画を保存しました"
+                            )
                         else:
                             niconico_logger.info(
-                                f"ℹ️ 新着動画はありません（既存: 1 個）"
+                                f"[INFO] 新着動画はありません（既存: 1 個）"
                             )
                         self.last_video_id = video_entry.get("id")
                         logger.debug(f"[ラストID更新] video_id={self.last_video_id}")
@@ -433,59 +441,6 @@ class NiconicoPlugin(NotificationPlugin):
         logger.debug(f"[RSS取得] 動画: {url}")
         return self._fetch_rss_with_retry(url, kind="video")
 
-    def _fetch_rss_with_retry(
-        self, url: str, kind: str = "video"
-    ) -> Optional[Dict[str, Any]]:
-        """
-        RSS を取得（リトライロジック付き）
-
-        Args:
-            url: RSS フィード URL
-            kind: "video"
-
-        Returns:
-            dict または None
-        """
-        for attempt in range(1, RSS_RETRY_MAX + 1):
-            try:
-                logger.debug(f"[RSS取得試行] {attempt}/{RSS_RETRY_MAX}")
-
-                # feedparser は timeout パラメータに対応していないため、
-                # 基本的なエラーハンドリングのみ実装
-                feed = feedparser.parse(url)
-
-                # feedparser のエラーチェック
-                if hasattr(feed, "bozo_exception") and feed.bozo_exception:
-                    raise feed.bozo_exception
-
-                if feed.entries:
-                    entry = feed.entries[0]
-                    result = {
-                        "id": entry.get("id", ""),
-                        "title": entry.get("title", ""),
-                        "link": entry.get("link", ""),
-                        "published": entry.get("published", ""),
-                        "author": entry.get("author", ""),
-                    }
-                    logger.debug(f"[RSS取得成功] entry_id={result.get('id')}")
-                    return result
-
-                logger.debug(f"[RSS取得] エントリなし（フィード空）")
-                return None
-
-            except Exception as e:
-                logger.warning(
-                    f"[RSS取得エラー] 試行 {attempt}/{RSS_RETRY_MAX}: {type(e).__name__}: {e}"
-                )
-
-                if attempt < RSS_RETRY_MAX:
-                    logger.debug(f"[リトライ待機] {RSS_RETRY_WAIT}秒待機中...")
-                    time.sleep(RSS_RETRY_WAIT)
-                else:
-                    logger.error(f"[RSS取得失敗] 最大リトライ回数に達しました")
-                    return None
-
-        return None
 
     def _entry_to_video_dict(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -525,8 +480,8 @@ class NiconicoPlugin(NotificationPlugin):
         try:
             dt = parsedate_to_datetime(published)
             published_at = dt.isoformat()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"ℹ️ 公開日時パーススキップ: {e}")
 
         video = {
             "video_id": video_id,
@@ -632,7 +587,7 @@ class NiconicoPlugin(NotificationPlugin):
                     self.db.update_image_info(
                         video_id, image_mode="import", image_filename=filename
                     )
-                    logger.info(f"[自動画像取得] {video_id} -> {filename}")
+                    logger.info(f"[SUCCESS] [自動画像取得] {video_id} -> {filename}")
             finally:
                 # ロガーを元に戻す
                 db_module.logger = original_db_logger
@@ -686,12 +641,13 @@ class NiconicoPlugin(NotificationPlugin):
             description = ""
             for meta in soup.find_all("meta"):
                 property_name = meta.get("property", "") or meta.get("name", "")
-                content = meta.get("content", "")
-
+                content_raw = meta.get("content", "")
+                content = content_raw[0] if isinstance(content_raw, list) else (content_raw or "")
+ 
                 if property_name == "og:title":
-                    title = content
+                    title = str(content)
                 elif property_name == "og:description":
-                    description = content
+                    description = str(content)
 
             # タイトルが取得できなければ動画URL としてスキップ
             if not title:
@@ -777,9 +733,9 @@ class NiconicoPlugin(NotificationPlugin):
 
                                 dt = parsedate_to_datetime(published_str)
                                 published_at = dt.isoformat()
-                            except Exception:
+                            except Exception as e:
                                 logger.debug(
-                                    f"[get_video_details] RFC 2822 パース失敗: {published_str}"
+                                    f"[get_video_details] RFC 2822 パース失敗: {published_str} - {e}"
                                 )
                         elif "-" in published_str and ":" in published_str:
                             # "YYYY-MM-DD HH:MM:SS" または "YYYY-MM-DDTHH:MM:SS" 形式
@@ -793,10 +749,10 @@ class NiconicoPlugin(NotificationPlugin):
                                 ):
                                     published_str += "Z"
                                 published_at = published_str
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
+                            except Exception as e:
+                                logger.debug(f"[get_video_details] 形式変換エラー: {e}")
+                    except Exception as e:
+                        logger.debug(f"[get_video_details] 形式正規化エラー: {e}")
 
             # サムネイル URL を取得
             thumbnail_url = self._fetch_thumbnail_url(video_id) or ""

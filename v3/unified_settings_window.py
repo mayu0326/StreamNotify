@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-統合設定ウィンドウ (v3.3.0+)
+統合設定ウィンドウ (v3.2.0+)
 
 全設定項目を GUI で一元管理し、settings.env のファイル破損を防止
 - タブ式UI (ttk.Notebook)
@@ -9,10 +9,10 @@
 - 入力バリデーション（範囲チェック、候補固定）
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
 import logging
+import tkinter as tk
 from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
 
 logger = logging.getLogger("GUILogger")
 
@@ -32,9 +32,9 @@ COMMENTED_KEYS = {
     "TEMPLATE_YOUTUBE_ONLINE_PATH",
     "TEMPLATE_YOUTUBE_OFFLINE_PATH",
     "TEMPLATE_YOUTUBE_ARCHIVE_PATH",
-    #"TEMPLATE_TWITCH_ONLINE_PATH",
-    #"TEMPLATE_TWITCH_OFFLINE_PATH",
-    #"TEMPLATE_TWITCH_RAID_PATH",
+    # "TEMPLATE_TWITCH_ONLINE_PATH",
+    # "TEMPLATE_TWITCH_OFFLINE_PATH",
+    # "TEMPLATE_TWITCH_RAID_PATH",
 }
 
 # UI型定義
@@ -962,7 +962,7 @@ class UnifiedSettingsWindow:
         # サブタブ 4-3: ポーリング設定
         self._build_subtab_live_polling(sub_notebook)
 
-        # ★ 【v3.3.3】サブタブ 4-4: キャッシュ管理
+        # ★ 【v3.2.0】サブタブ 4-4: キャッシュ管理
         self._build_subtab_live_cache(sub_notebook)
 
     def _build_subtab_live_delay(self, parent_notebook):
@@ -1164,7 +1164,7 @@ class UnifiedSettingsWindow:
         )
 
     def _build_subtab_live_cache(self, parent_notebook):
-        """★ 【v3.3.3】タブ 4-4: キャッシュ管理"""
+        """★ 【v3.2.0】タブ 4-4: キャッシュ管理"""
         sub_tab = ttk.Frame(parent_notebook)
         parent_notebook.add(sub_tab, text="💾 キャッシュ管理")
 
@@ -1268,7 +1268,7 @@ class UnifiedSettingsWindow:
         ).pack(anchor=tk.W, padx=10, pady=2)
 
     def _on_clear_live_cache(self):
-        """★ 【v3.3.3】LIVEキャッシュをクリア"""
+        """★ 【v3.2.0】LIVEキャッシュをクリア"""
         if self._cache_operation_running:
             messagebox.showwarning(
                 "警告", "キャッシュ操作が実行中です。終了を待ってください。"
@@ -1318,7 +1318,7 @@ class UnifiedSettingsWindow:
             self._cache_operation_running = False
 
     def _on_update_schedule_cache(self):
-        """★ 【v3.3.3】Schedule キャッシュを更新"""
+        """★ 【v3.2.0】Schedule キャッシュを更新"""
         if self._cache_operation_running:
             messagebox.showwarning(
                 "警告", "キャッシュ操作が実行中です。終了を待ってください。"
@@ -1338,7 +1338,7 @@ class UnifiedSettingsWindow:
             self._cache_operation_running = False
 
     def _on_update_live_cache(self):
-        """★ 【v3.3.3】LIVE（upcoming/live/end）キャッシュを更新"""
+        """★ 【v3.2.0】LIVE（upcoming/live/end）キャッシュを更新"""
         if self._cache_operation_running:
             messagebox.showwarning(
                 "警告", "キャッシュ操作が実行中です。終了を待ってください。"
@@ -1358,7 +1358,7 @@ class UnifiedSettingsWindow:
             self._cache_operation_running = False
 
     def _on_update_archive_cache(self):
-        """★ 【v3.3.3】Archive キャッシュを更新"""
+        """★ 【v3.2.0】Archive キャッシュを更新"""
         if self._cache_operation_running:
             messagebox.showwarning(
                 "警告", "キャッシュ操作が実行中です。終了を待ってください。"
@@ -1378,7 +1378,7 @@ class UnifiedSettingsWindow:
             self._cache_operation_running = False
 
     def _on_update_video_cache(self):
-        """★ 【v3.3.3】動画（video）キャッシュを更新"""
+        """★ 【v3.2.0】動画（video）キャッシュを更新"""
         if self._cache_operation_running:
             messagebox.showwarning(
                 "警告", "キャッシュ操作が実行中です。終了を待ってください。"
@@ -1397,7 +1397,7 @@ class UnifiedSettingsWindow:
             self._cache_operation_running = False
 
     def _on_force_update_all_cache(self):
-        """★ 【v3.3.3】キャッシュ強制更新（全件）"""
+        """★ 【v3.2.0】キャッシュ強制更新（全件）"""
         if self._cache_operation_running:
             messagebox.showwarning(
                 "警告", "キャッシュ操作が実行中です。終了を待ってください。"
@@ -1417,7 +1417,7 @@ class UnifiedSettingsWindow:
             self._cache_operation_running = False
 
     def _update_cache_by_type(self, cache_type):
-        """★ 【v3.3.3】キャッシュを種別ごとに更新（共通メソッド）"""
+        """★ 【v3.2.0】キャッシュを種別ごとに更新（共通メソッド）"""
 
         try:
             if not self.db:
@@ -1441,8 +1441,8 @@ class UnifiedSettingsWindow:
 
             # Classifier 取得
             try:
-                from youtube_core.youtube_video_classifier import get_video_classifier
                 from config import get_config
+                from youtube_core.youtube_video_classifier import get_video_classifier
 
                 config = get_config("settings.env")
                 classifier = get_video_classifier(api_key=config.youtube_api_key)
@@ -1569,7 +1569,7 @@ class UnifiedSettingsWindow:
             logger.error(f"[キャッシュ管理] エラー: {e}")
 
     def _should_update_cache(self, video, cache_type="live"):
-        """★ 【v3.3.3】キャッシュを更新すべきかチェック"""
+        """★ 【v3.2.0】キャッシュを更新すべきかチェック"""
         from datetime import datetime, timedelta
 
         updated_at = video.get("updated_at")
@@ -2620,6 +2620,7 @@ class UnifiedSettingsWindow:
         """セキュリティオプション付きのバックアップ作成処理"""
         try:
             from datetime import datetime
+
             from backup_manager import get_backup_manager
 
             # バックアップディレクトリを作成
@@ -2866,8 +2867,9 @@ class UnifiedSettingsWindow:
 
     def _test_websub_connection(self, client_id, api_key, server_url):
         """WebSub サーバーへの接続テスト"""
-        import requests
         from threading import Thread
+
+        import requests
 
         # 入力値の検証
         if not client_id or not client_id.strip():

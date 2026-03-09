@@ -1,16 +1,17 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - プラグインマネージャー
+StreamNotify - v3 プラグインマネージャー
 
 プラグインの動的な読み込み、管理、実行を担当します。
 """
 
-import sys
-import logging
 import importlib.util
+import logging
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
 from plugin_interface import NotificationPlugin
 
 logger = logging.getLogger("AppLogger")

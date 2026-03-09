@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - Bluesky コア機能（内部ライブラリ）
+StreamNotify v3 - Bluesky コア機能（内部ライブラリ）
 
 【重要】このモジュールはプラグイン層からのみ利用されます。
 直接呼び出しは行わないでください。画像添付機能はプラグイン層で実装されます。
@@ -12,11 +12,13 @@ Rich Text Facet: https://docs.bsky.app/docs/advanced-guides/post-richtext
 画像埋め込み: https://docs.bsky.app/docs/advanced-guides/posts
 """
 
+import json
 import logging
 import re
-import json
-import requests
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+import requests
 
 logger = logging.getLogger("AppLogger")
 post_logger = logging.getLogger("PostLogger")
@@ -25,7 +27,7 @@ __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
 __license__ = "GPLv2"
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 # --- 最小限投稿API ---
@@ -83,7 +85,7 @@ class BlueskyMinimalPoster:
         self.dry_run = dry_run
         post_logger.info(f"🧪 BlueskyMinimalPoster dry_run={dry_run}")
 
-    def _build_facets_for_url(self, text: str) -> list:
+    def _build_facets_for_url(self, text: str) -> Optional[List[Dict[str, Any]]]:
         """
         テキストから URL とハッシュタグを検出して Facet を構築
 
@@ -151,6 +153,7 @@ class BlueskyMinimalPoster:
 
     def post_video_minimal(self, video: dict) -> bool:
         """最小限の動画投稿API（テキスト + オプション画像埋め込み）"""
+        post_data: Dict[str, Any] = {}
         try:
             # デバッグ: 受け取ったフィールドを確認
             post_logger.debug(f"🔍 post_video_minimal に受け取ったフィールド:")
@@ -213,15 +216,19 @@ class BlueskyMinimalPoster:
                 post_logger.info("🔗 リンクカード embed を構築しています...")
                 embed = self._build_external_embed(video_url)
                 if embed:
-                    post_logger.info("✅ リンクカード embed を追加します")
+                    post_logger.info("[SUCCESS] リンクカード embed を追加します")
                 else:
-                    post_logger.info("ℹ️ リンクカード embed は無視されます（画像なし）")
+                    post_logger.info(
+                        "[INFO] リンクカード embed は無視されます（画像なし）"
+                    )
 
             if self.dry_run:
                 logger.info(f"[DRY RUN] Bluesky ポスト\n{post_text}")
                 return True
             if not self.access_token or not self.did:
-                logger.error("❌ アクセストークンまたは DID が初期化されていません")
+                logger.error(
+                    "[ERROR] アクセストークンまたは DID が初期化されていません"
+                )
                 return False
             post_url = "https://bsky.social/xrpc/com.atproto.repo.createRecord"
             post_record = {
@@ -249,7 +256,7 @@ class BlueskyMinimalPoster:
             }
 
             post_logger.info(
-                f"📍 投稿: text={len(post_text)} 文字, facets={len(facets) if facets else 0} 個, 画像={bool(embed)}"
+                f"[INFO] 投稿: text={len(post_text)} 文字, facets={len(facets) if facets else 0} 個, 画像={bool(embed)}"
             )
             if facets:
                 post_logger.info(f"   facets: {[f['index'] for f in facets]}")
@@ -262,42 +269,33 @@ class BlueskyMinimalPoster:
             uri = response_data.get("uri", "unknown")
 
             if facets:
-                post_logger.info(f"✅ Bluesky に投稿しました（リンク化）: {uri}")
-                logger.info(f"✅ Bluesky に投稿しました（リンク化）: {uri}")
+                post_logger.info(f"[SUCCESS] Bluesky に投稿しました（リンク化）: {uri}")
+                logger.info(f"[SUCCESS] Bluesky に投稿しました（リンク化）: {uri}")
             else:
-                post_logger.info(f"✅ Bluesky に投稿しました（リンクなし）: {uri}")
-                logger.info(f"✅ Bluesky に投稿しました（リンクなし）: {uri}")
+                post_logger.info(
+                    f"[SUCCESS] Bluesky に投稿しました（リンクなし）: {uri}"
+                )
+                logger.info(f"[SUCCESS] Bluesky に投稿しました（リンクなし）: {uri}")
 
             return True
-        except requests.exceptions.HTTPError as e:
-            # HTTP エラーの詳細情報をログ
-            try:
-                error_data = e.response.json()
-                logger.error(
-                    f"❌ Bluesky API エラー ({e.response.status_code}): {error_data}"
-                )
-                post_logger.error(
-                    f"❌ Bluesky API エラー ({e.response.status_code}): {error_data}"
-                )
-            except:
-                logger.error(
-                    f"❌ Bluesky API エラー: {e.response.status_code} - {e.response.text}"
-                )
-                post_logger.error(
-                    f"❌ Bluesky API エラー: {e.response.status_code} - {e.response.text}"
-                )
+        except Exception as e:
+            logger.error(
+                f"[ERROR] Bluesky API エラー: {e.response.status_code if hasattr(e, 'response') else 'unknown'} - {e.response.text if hasattr(e, 'response') else str(e)}"
+            )
+            post_logger.error(
+                f"[ERROR] Bluesky API エラー: {e.response.status_code if hasattr(e, 'response') else 'unknown'} - {e.response.text if hasattr(e, 'response') else str(e)}"
+            )
             logger.error(
                 f"投稿リクエストボディ: {json.dumps(post_data, indent=2, default=str)}",
                 exc_info=False,
             )
             return False
-        except Exception as e:
             logger.error(f"投稿処理中にエラーが発生しました: {e}", exc_info=True)
             return False
 
     # ============ リンクカード機能（OGP 取得） ============
 
-    def _fetch_ogp_data(self, url: str) -> dict:
+    def _fetch_ogp_data(self, url: str) -> Optional[Dict[str, Any]]:
         """
         URL から OGP（Open Graph Protocol）メタデータを取得
 
@@ -333,12 +331,16 @@ class BlueskyMinimalPoster:
             # フォールバック: og:title がない場合は title タグを使用
             if not og_title:
                 title_tag = soup.find("title")
-                title = title_tag.string if title_tag else "No title"
+                title = str(title_tag.string) if title_tag and title_tag.string else "No title"
             else:
-                title = og_title.get("content", "No title")
+                title_raw = og_title.get("content", "No title")
+                title = title_raw[0] if isinstance(title_raw, list) else (title_raw or "No title")
 
-            description = og_desc.get("content", "") if og_desc else ""
-            image_url = og_image.get("content", None) if og_image else None
+            description_raw = og_desc.get("content", "") if og_desc else ""
+            description = description_raw[0] if isinstance(description_raw, list) else (description_raw or "")
+
+            image_url_raw = og_image.get("content", None) if og_image else None
+            image_url = image_url_raw[0] if isinstance(image_url_raw, list) else image_url_raw
 
             # 相対 URL を絶対 URL に変換
             if image_url and "://" not in image_url:
@@ -352,14 +354,14 @@ class BlueskyMinimalPoster:
                 "image_url": image_url,
             }
 
-            post_logger.info(f"✅ OGP 取得成功: title={ogp_data['title'][:30]}...")
+            post_logger.info(f"✅ OGP 取得成功: title={title[:30]}...")
             return ogp_data
 
         except Exception as e:
             post_logger.warning(f"⚠️ OGP 取得失敗: {e}")
             return None
 
-    def _upload_ogp_image_blob(self, image_url: str) -> dict:
+    def _upload_ogp_image_blob(self, image_url: str) -> Optional[Dict[str, Any]]:
         """
         OGP 画像を Blob としてアップロード
 
@@ -432,7 +434,7 @@ class BlueskyMinimalPoster:
             post_logger.warning(f"⚠️ OGP 画像アップロード失敗: {e}")
             return None
 
-    def _build_external_embed(self, url: str) -> dict:
+    def _build_external_embed(self, url: str) -> Optional[Dict[str, Any]]:
         """
         リンクカード（外部 embed）を構築
 
@@ -455,7 +457,7 @@ class BlueskyMinimalPoster:
                 return None
 
             # リンクカード基本情報
-            embed = {
+            embed: Dict[str, Any] = {
                 "$type": "app.bsky.embed.external",
                 "external": {
                     "uri": url,

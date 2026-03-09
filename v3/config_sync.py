@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 設定ファイル同期
+StreamNotify - v3 設定ファイル同期
 
 settings.env.example から新しい設定項目を検出して、
 settings.env に自動的に挿入するモジュール。
@@ -10,9 +10,9 @@ settings.env に自動的に挿入するモジュール。
 純粋に不足項目のみを適切なセクションに挿入する。
 """
 
-import os
 import logging
-from typing import Tuple, List
+import os
+from typing import Dict, List, Set, Tuple
 
 logger = logging.getLogger("AppLogger")
 
@@ -52,8 +52,8 @@ def _read_keys_from_file(file_path: str) -> Tuple[set, dict]:
     Returns:
         (キーセット, キー→行番号の辞書)のタプル
     """
-    keys = set()
-    key_line_map = {}
+    keys: Set[str] = set()
+    key_line_map: Dict[str, int] = {}
 
     if not os.path.exists(file_path):
         return keys, key_line_map
@@ -82,7 +82,7 @@ def _read_file_with_sections(file_path: str) -> List[Tuple[str, str]]:
         (行内容, セクション名) のリスト
         セクション名はセクションヘッダーが出現するまで""
     """
-    lines = []
+    lines: List[Tuple[str, str]] = []
     current_section = ""
 
     if not os.path.exists(file_path):

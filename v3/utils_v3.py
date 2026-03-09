@@ -1,14 +1,16 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v3 ユーティリティ
+StreamNotify - v3 ユーティリティ
 
 YouTube → Bluesky 通知ボット用の共通ユーティリティ関数を提供します。
 """
 
-from datetime import datetime, timezone
-import os
 import logging
+import os
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
 import pytz
 from tzlocal import get_localzone
 
@@ -22,7 +24,7 @@ __license__ = "GPLv2"
 util_logger = logging.getLogger("AppLogger.Utils")
 
 
-def format_datetime_filter(iso_datetime_str, fmt="%Y-%m-%d %H:%M %Z"):
+def format_datetime_filter(iso_datetime_str: str, fmt: str = "%Y-%m-%d %H:%M %Z") -> str:
     """
     ISO 形式の日時文字列を指定タイムゾーン・フォーマットで整形して返す
 
@@ -57,8 +59,8 @@ def format_datetime_filter(iso_datetime_str, fmt="%Y-%m-%d %H:%M %Z"):
         dt_utc = datetime.fromisoformat(iso_str)
 
         # 環境変数からタイムゾーンを取得（未指定ならシステムローカル）
-        target_tz_name = os.getenv("TIMEZONE", "system")
-        target_tz = None
+        target_tz_name: str = os.getenv("TIMEZONE", "system")
+        target_tz: Any = None
 
         if target_tz_name.lower() == "system":
             try:

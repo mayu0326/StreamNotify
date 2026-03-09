@@ -7,12 +7,13 @@ YouTube Data API を使用して、動画が通常動画またはプレミア公
 Live関連（スケジュール、放送中、放送終了、ライブアーカイブ）は除外。
 """
 
+import json
 import logging
 import os
-import json
 import time
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, Optional
+
 import requests
 
 __author__ = "mayuneco(mayunya)"
@@ -34,7 +35,7 @@ VIDEOS_API_ENDPOINT = f"{YOUTUBE_API_BASE_URL}/videos"
 # API レスポンスから抽出する必須フィールド
 VIDEOS_PART = "snippet,liveStreamingDetails,contentDetails"
 
-# ビデオの種別定義（v3.3.0 仕様）
+# ビデオの種別定義（v3.2.0 仕様）
 VIDEO_TYPE_NORMAL = "video"  # 通常動画
 VIDEO_TYPE_PREMIERE = "premiere"  # プレミア公開
 VIDEO_TYPE_LIVE = "live"  # ライブ配信中
@@ -56,7 +57,7 @@ class YouTubeVideoClassifier:
         """
         self.api_key = api_key or os.getenv("YOUTUBE_API_KEY")
         if not self.api_key:
-            logger.warning("⚠️ YOUTUBE_API_KEY が設定されていません")
+            logger.warning("[WARN] YOUTUBE_API_KEY が設定されていません")
         self.session = requests.Session()
 
         # キャッシュの初期化
@@ -72,7 +73,7 @@ class YouTubeVideoClassifier:
         キャッシュを先に確認し、有効期限内ならそれを使用。
         期限切れならば API で取得してキャッシュに保存。
 
-        ★ 【修正 v3.4.3】キャッシング戦略を統一（クォータ削減）
+        ★ 【修正 v3.2.0】キャッシング戦略を統一（クォータ削減）
         - 全ての動画（通常・Live関連）に統一したキャッシュ有効期限を適用
         - Live関連でも有効期限内ならキャッシュを再利用
         - 無条件な再取得を廃止し、クォータ消費を大幅削減
@@ -99,7 +100,7 @@ class YouTubeVideoClassifier:
             }
         """
         # ★ ステップ 1: キャッシュを確認（force_refresh が True でない場合のみ）
-        # ★ 【修正 v3.4.3】Live 関連でも有効期限内ならキャッシュを再利用（クォータ削減）
+        # ★ 【修正 v3.2.0】Live 関連でも有効期限内ならキャッシュを再利用（クォータ削減）
         if not force_refresh and video_id in self.video_detail_cache:
             cache_entry = self._get_cache_entry(video_id)
             if cache_entry:
@@ -132,7 +133,7 @@ class YouTubeVideoClassifier:
             classified = self._classify_from_response(result)
 
             # ★ ステップ 2: キャッシュに保存（全ての動画タイプを対象）
-            # ★ 【修正 v3.4.3】Live関連動画もキャッシュに保存（クォータ削減）
+            # ★ 【修正 v3.2.0】Live関連動画もキャッシュに保存（クォータ削減）
             # キャッシュ有効期限（デフォルト 7 日）内なら、状態遷移中の Live 動画でも
             # キャッシュを再利用して API 呼び出しを削減。状態が頻繁に変わる場合は
             # force_refresh=True を指定して明示的に再取得すること
@@ -144,7 +145,7 @@ class YouTubeVideoClassifier:
             return classified
 
         except Exception as e:
-            logger.error(f"❌ 動画分類エラー（{video_id}）: {e}")
+            logger.error(f"[FAILURE] 動画分類エラー（{video_id}）: {e}")
             return {
                 "success": False,
                 "video_id": video_id,
@@ -282,7 +283,7 @@ class YouTubeVideoClassifier:
                 # ★ 【新】基準時刻：actualEndTime
                 representative_time_utc = actual_end_time
                 logger.debug(
-                    f"✅ アーカイブ判定: {video_id} (actualEndTime={actual_end})"
+                    f"[SUCCESS] アーカイブ判定: {video_id} (actualEndTime={actual_end})"
                 )
             else:
                 # 判定不可だが live_details が存在
@@ -368,7 +369,7 @@ class YouTubeVideoClassifier:
         """キャッシュファイルからビデオ詳細キャッシュを読み込む"""
         cache_path = Path(VIDEO_DETAIL_CACHE_FILE)
         if not cache_path.exists():
-            logger.debug(f"ℹ️ キャッシュファイルが見つかりません: {cache_path}")
+            logger.debug(f"[INFO] キャッシュファイルが見つかりません: {cache_path}")
             return
 
         try:
@@ -381,7 +382,7 @@ class YouTubeVideoClassifier:
                     self.video_detail_cache[video_id] = cache_entry["data"]
 
             logger.info(
-                f"✅ ビデオ詳細キャッシュを読み込みました: {len(self.video_detail_cache)}件"
+                f"[SUCCESS] ビデオ詳細キャッシュを読み込みました: {len(self.video_detail_cache)}件"
             )
 
         except json.JSONDecodeError as e:

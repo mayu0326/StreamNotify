@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - Bluesky 画像添付拡張プラグイン
+StreamNotify - Bluesky 画像添付拡張プラグイン
 
 Bluesky への画像添付機能を提供する拡張プラグイン。
 bluesky_core.py のコア機能（投稿・Facet・認証・ドライラン）とは独立。
@@ -16,9 +16,10 @@ from PIL import Image
 
 # 親ディレクトリをパスに追加（image_manager.pyをインポートするため）
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from image_manager import get_image_manager
 from bluesky_core import BlueskyMinimalPoster
+from image_manager import get_image_manager
 from image_processor import resize_image
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger("AppLogger")
 post_logger = logging.getLogger("PostLogger")
@@ -29,7 +30,7 @@ __license__ = "GPLv2"
 
 
 # settings.env から値を取得する簡易関数
-def get_env_setting(key: str, default: str = None) -> str:
+def get_env_setting(key: str, default: Optional[str] = None) -> Optional[str]:
     env_path = Path(__file__).parent.parent / "settings.env"
     if not env_path.exists():
         return default
@@ -86,23 +87,6 @@ def _load_image_resize_config():
 # 画像処理ロジックは image_processor モジュールで実装
 
 
-def get_env_setting(key: str, default=None):
-    """settings.env から設定値を取得（汎用関数）"""
-    try:
-        settings_path = Path("settings.env")
-        if not settings_path.exists():
-            return default
-        with open(settings_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    if k.strip() == key:
-                        return v.strip()
-    except Exception as e:
-        logger.warning(f"⚠️ 設定ファイル読み込み失敗: {e}")
-    return default
 
 
 from plugin_interface import NotificationPlugin
@@ -120,7 +104,7 @@ class BlueskyImagePlugin(NotificationPlugin):
         username: str,
         password: str,
         dry_run: bool = False,
-        minimal_poster: BlueskyMinimalPoster = None,
+        minimal_poster: Optional[BlueskyMinimalPoster] = None,
     ):
         # 既存の BlueskyMinimalPoster が渡された場合は再ログインを避ける
         self.minimal_poster = (
@@ -152,7 +136,7 @@ class BlueskyImagePlugin(NotificationPlugin):
         post_logger.info(
             f"📥 【post_video() 入力値】 classification_type={video.get('classification_type')}, content_type={video.get('content_type')}, live_status={video.get('live_status')}, event_type={video.get('event_type')}"
         )
-        # ★ classification_type が None の場合、content_type から直接自動判定（v3.3.0+）
+        # ★ classification_type が None の場合、content_type から直接自動判定（v3.2.0+）
         # content_type は既に 5カテゴリに分類されている：video, archive, schedule, live, completed
         if not video.get("classification_type") and video.get("content_type"):
             content_type = video.get("content_type")
@@ -170,7 +154,7 @@ class BlueskyImagePlugin(NotificationPlugin):
                     f"✅ 【自動判定】 content_type='{content_type}' → classification_type='video' (デフォルト)"
                 )
 
-        # ========== YouTube Live 投稿直前の API 確認（v3.3.0+） ==========
+        # ========== YouTube Live 投稿直前の API 確認（v3.2.0+） ==========
         # Live/Schedule/Archive の場合、投稿直前に API で最新情報を確認
         source = video.get("source", "youtube").lower()
         video_id = video.get("video_id")
@@ -202,14 +186,14 @@ class BlueskyImagePlugin(NotificationPlugin):
                             new_time = latest_info["published_at"]
                             if old_time != new_time:
                                 post_logger.info(
-                                    f"📡 API 確認: 放送時刻が変更されました"
+                                    f"[INFO] API 確認: 放送時刻が変更されました"
                                 )
                                 post_logger.info(f"  旧: {old_time}")
                                 post_logger.info(f"  新: {new_time}")
                                 video["published_at"] = new_time
                             else:
                                 post_logger.debug(
-                                    f"✅ API 確認: 放送時刻は変更されていません ({new_time})"
+                                    f"[SUCCESS] API 確認: 放送時刻は変更されていません ({new_time})"
                                 )
 
                         # ★ テンプレート用の日付・時間フィールドを更新
@@ -338,7 +322,7 @@ class BlueskyImagePlugin(NotificationPlugin):
         live_status = video.get("live_status")
         rendered = ""
 
-        # ★ v3.3.0: channel_name が空の場合のフォールバック処理
+        # ★ v3.2.0: channel_name が空の場合のフォールバック処理
         if not video.get("channel_name") or video.get("channel_name") == "":
             # YouTube API キャッシュから channelTitle を取得
             try:
@@ -564,8 +548,8 @@ class BlueskyImagePlugin(NotificationPlugin):
     # ============ ファイルパス解決機能 ============
 
     def _resolve_image_path(
-        self, image_filename: str, image_mode: str = None, source: str = "youtube"
-    ) -> str:
+        self, image_filename: str, image_mode: Optional[str] = None, source: str = "youtube"
+    ) -> Optional[str]:
         """
         画像ファイル名から完全パスを構築
 
@@ -600,7 +584,7 @@ class BlueskyImagePlugin(NotificationPlugin):
 
     # ============ 画像アップロード機能（拡張機能） ============
 
-    def _upload_blob(self, file_path: str, resize_small_images: bool = True) -> dict:
+    def _upload_blob(self, file_path: str, resize_small_images: bool = True) -> Optional[Tuple[Dict[str, Any], Optional[int], Optional[int]]]:
         """
         画像をBlob としてアップロード
 
@@ -685,8 +669,9 @@ class BlueskyImagePlugin(NotificationPlugin):
 
                 # リサイズ後の画像情報を取得
                 try:
-                    from PIL import Image as PILImage
                     import io
+
+                    from PIL import Image as PILImage
 
                     resized_img = PILImage.open(io.BytesIO(image_data))
                     resized_width, resized_height = resized_img.size
@@ -786,8 +771,8 @@ class BlueskyImagePlugin(NotificationPlugin):
         return mime_types.get(ext, "image/jpeg")  # デフォルトは JPEG
 
     def _build_image_embed(
-        self, blob: dict, width: int = None, height: int = None
-    ) -> dict:
+        self, blob: Dict[str, Any], width: Optional[int] = None, height: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Blob メタデータから画像埋め込み（embed）オブジェクトを構築
 
@@ -811,11 +796,11 @@ class BlueskyImagePlugin(NotificationPlugin):
         # ★ aspectRatio を設定（Blueskyクライアントの正確な画像表示用）
         if width and height:
             image_obj["aspectRatio"] = {"width": width, "height": height}
-            post_logger.debug(f"📐 AspectRatio を設定: {width}×{height}")
+            post_logger.debug(f"[INFO] AspectRatio を設定: {width}×{height}")
 
         return {"$type": "app.bsky.embed.images", "images": [image_obj]}
 
-    def _download_image(self, url: str) -> str:
+    def _download_image(self, url: str) -> Optional[str]:
         """
         URL から画像をダウンロード
 
@@ -827,6 +812,7 @@ class BlueskyImagePlugin(NotificationPlugin):
         """
         try:
             import tempfile
+
             import requests
 
             response = requests.get(url, timeout=10)
@@ -856,18 +842,24 @@ class BlueskyImagePlugin(NotificationPlugin):
                 tmp.write(response.content)
                 tmp_path = tmp.name
 
-            post_logger.info(f"✅ 画像ダウンロード成功: {len(response.content)} bytes")
+            post_logger.info(
+                f"[SUCCESS] 画像ダウンロード成功: {len(response.content)} bytes"
+            )
             return tmp_path
 
         except Exception as e:
-            post_logger.warning(f"⚠️ 画像ダウンロード失敗: {e}")
+            post_logger.warning(f"[WARN] 画像ダウンロード失敗: {e}")
             return None
 
     # ============ 画像取得・テンプレート機能 ============
 
     # 画像取得は ImageManager に委譲（後方互換性のため残す）
     def _get_image_bytes(
-        self, site: str = None, mode: str = None, filename: str = None, url: str = None
+        self,
+        site: Optional[str] = None,
+        mode: Optional[str] = None,
+        filename: Optional[str] = None,
+        url: Optional[str] = None,
     ) -> bytes:
         """画像データを取得（ImageManagerを使用）"""
         return self.image_manager.get_image_bytes(
@@ -884,12 +876,12 @@ class BlueskyImagePlugin(NotificationPlugin):
 
             with open(template_path, encoding="utf-8") as f:
                 template_str = f.read()
-            env = Environment()
+            env = Environment(autoescape=True)
             env.filters["datetimeformat"] = format_datetime_filter
             template = env.from_string(template_str)
             return template.render(**context)
         except Exception as e:
-            logger.error(f"❌ テンプレートレンダリング失敗: {e}")
+            logger.error(f"[ERROR] テンプレートレンダリング失敗: {e}")
             return ""
 
     # ============ テンプレート処理統合（新規: v3.1.0+） ============
@@ -922,12 +914,12 @@ class BlueskyImagePlugin(NotificationPlugin):
         """
         try:
             from template_utils import (
-                load_template_with_fallback,
-                validate_required_keys,
-                render_template,
-                get_template_path,
-                TEMPLATE_REQUIRED_KEYS,
                 DEFAULT_TEMPLATE_PATH,
+                TEMPLATE_REQUIRED_KEYS,
+                get_template_path,
+                load_template_with_fallback,
+                render_template,
+                validate_required_keys,
             )
 
             # 1. テンプレートパスを取得（環境変数から、またはデフォルト）
@@ -987,7 +979,9 @@ class BlueskyImagePlugin(NotificationPlugin):
             )
 
             if rendered_text:
-                post_logger.debug(f"✅ テンプレートレンダリング成功: {template_type}")
+                post_logger.debug(
+                    f"[SUCCESS] テンプレートレンダリング成功: {template_type}"
+                )
                 return rendered_text
             else:
                 post_logger.error(f"❌ テンプレートレンダリング失敗: {template_type}")
