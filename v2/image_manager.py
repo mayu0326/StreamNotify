@@ -7,13 +7,12 @@ Stream notify on Bluesky - v2 画像管理モジュール
 GUI、プラグイン、その他のモジュールから共通利用可能。
 """
 
-import io
-import logging
 import os
-from pathlib import Path
-from typing import List, Optional, Tuple
-
+import logging
 import requests
+from pathlib import Path
+from typing import Optional, Tuple, List, Any
+import io
 
 # Pillowはオプション（画像情報取得機能で使用）
 try:
@@ -97,7 +96,7 @@ class ImageManager:
         (self.base_dir / "default").mkdir(parents=True, exist_ok=True)
 
         # サイト別ディレクトリ
-        for site in ["default", "YouTube"]:
+        for site in ["YouTube", "Niconico", "Twitch"]:
             (self.base_dir / site / "import").mkdir(parents=True, exist_ok=True)
             (self.base_dir / site / "autopost").mkdir(parents=True, exist_ok=True)
 
@@ -118,7 +117,7 @@ class ImageManager:
         4. フォールバック: images/default/noimage.png
 
         Args:
-            site: サイト名 (YouTube)
+            site: サイト名 (YouTube, Niconico, Twitch)
             mode: 取得モード (import, autopost)
             filename: ファイル名
             url: 画像URL
@@ -239,7 +238,7 @@ class ImageManager:
         try:
             img = Image.open(io.BytesIO(image_data))
             return img.format.lower() if img.format else "png"
-        except Exception:
+        except:
             return "png"
 
     def list_images(self, site: str, mode: str = "import") -> List[str]:
@@ -383,7 +382,268 @@ class ImageManager:
         except Exception as e:
             return False, f"無効な画像形式です: {e}"
 
-    # v2.1.0 Features removed for downgrade to v2.0.0
+    def resize_image(
+        self,
+        site: str,
+        mode: str,
+        filename: str,
+        max_width: int = 1920,
+        max_height: int = 1080,
+        output_filename: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        画像をリサイズ（アスペクト比を維持）
+
+        Args:
+            site: サイト名
+            mode: モード
+            filename: 元ファイル名
+            max_width: 最大幅
+            max_height: 最大高さ
+            output_filename: 出力ファイル名（省略時は元ファイルを上書き）
+
+        Returns:
+            リサイズ後のファイル名、失敗時は None
+        """
+        if not PIL_AVAILABLE:
+            logger.error("❌ Pillowがインストールされていないため、リサイズできません")
+            return None
+
+        input_path = self.base_dir / site / mode / filename
+        if not input_path.exists():
+            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            return None
+
+        try:
+            with Image.open(input_path) as img:
+                # EXIFの向き情報を適用
+                transposed_img = ImageOps.exif_transpose(img)
+
+                # リサイズが必要か確認
+                if transposed_img.width <= max_width and transposed_img.height <= max_height:
+                    logger.info(f"✅ リサイズ不要: {transposed_img.width}x{transposed_img.height}")
+                    return filename
+
+                # アスペクト比を維持してリサイズ
+                transposed_img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+
+                # Mypy対策: 別の変数に代入して ImageFile との不整合を回避
+                resized_img = transposed_img
+
+                output_name = output_filename or filename
+                output_path = self.base_dir / site / mode / output_name
+
+                # 保存
+                img.save(output_path, optimize=True, quality=85)
+                logger.info(
+                    f"✅ リサイズ成功: {img.width}x{img.height} → {output_path}"
+                )
+                return output_name
+
+        except Exception as e:
+            logger.error(f"❌ リサイズ失敗: {input_path} - {e}")
+        return None
+
+    def convert_to_format(
+        self,
+        site: str,
+        mode: str,
+        filename: str,
+        target_format: str = "PNG",
+        output_filename: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        画像を指定形式に変換
+
+        Args:
+            site: サイト名
+            mode: モード
+            filename: 元ファイル名
+            target_format: 変換先形式 (PNG, JPEG, WEBP)
+            output_filename: 出力ファイル名（省略時は自動生成）
+
+        Returns:
+            変換後のファイル名、失敗時は None
+        """
+        if not PIL_AVAILABLE:
+            logger.error("❌ Pillowがインストールされていないため、変換できません")
+            return None
+
+        input_path = self.base_dir / site / mode / filename
+        if not input_path.exists():
+            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            return None
+
+        try:
+            with Image.open(input_path) as img:
+                # RGBAモードの場合、JPEGに変換する際はRGBに変換
+                final_img: Image.Image = img
+                if target_format.upper() == "JPEG" and img.mode in ("RGBA", "LA", "P"):
+                    rgb_img = Image.new("RGB", img.size, (255, 255, 255))
+                    if img.mode == "P":
+                        p_img = img.convert("RGBA")
+                        rgb_img.paste(
+                            p_img, mask=p_img.split()[-1]
+                        )
+                    else:
+                        rgb_img.paste(
+                            img, mask=img.split()[-1] if img.mode == "RGBA" else None
+                        )
+                    final_img = rgb_img
+
+                # 出力ファイル名を生成
+                if not output_filename:
+                    stem = input_path.stem
+                    target_ext = target_format.lower()
+                    if target_ext == "jpeg":
+                        target_ext = "jpg"
+                    output_filename = f"{stem}.{target_ext}"
+
+                output_path = self.base_dir / site / mode / output_filename
+
+                # 保存オプション
+                save_kwargs: dict[str, Any] = {"format": target_format.upper()}
+                if target_format.upper() == "JPEG":
+                    save_kwargs["quality"] = 85
+                    save_kwargs["optimize"] = True
+                elif target_format.upper() == "PNG":
+                    save_kwargs["optimize"] = True
+                elif target_format.upper() == "WEBP":
+                    save_kwargs["quality"] = 85
+
+                final_img.save(output_path, **save_kwargs)
+                logger.info(f"✅ 変換成功: {target_format} → {output_path}")
+                return output_filename
+
+        except Exception as e:
+            logger.error(f"❌ 変換失敗: {input_path} - {e}")
+        return None
+
+    def create_thumbnail(
+        self,
+        site: str,
+        mode: str,
+        filename: str,
+        thumb_size: Tuple[int, int] = (320, 180),
+        output_suffix: str = "_thumb",
+    ) -> Optional[str]:
+        """
+        サムネイル画像を生成
+
+        Args:
+            site: サイト名
+            mode: モード
+            filename: 元ファイル名
+            thumb_size: サムネイルサイズ (幅, 高さ)
+            output_suffix: 出力ファイル名の接尾辞
+
+        Returns:
+            サムネイルファイル名、失敗時は None
+        """
+        if not PIL_AVAILABLE:
+            logger.error(
+                "❌ Pillowがインストールされていないため、サムネイル生成できません"
+            )
+            return None
+
+        input_path = self.base_dir / site / mode / filename
+        if not input_path.exists():
+            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            return None
+
+        try:
+            with Image.open(input_path) as img:
+                # EXIFの向き情報を適用
+                transposed_img = ImageOps.exif_transpose(img)
+
+                # サムネイル生成
+                transposed_img.thumbnail(thumb_size, Image.Resampling.LANCZOS)
+
+                # 出力ファイル名を生成
+                stem = input_path.stem
+                ext = input_path.suffix
+                output_filename = f"{stem}{output_suffix}{ext}"
+                output_path = self.base_dir / site / mode / output_filename
+
+                transposed_img.save(output_path, optimize=True, quality=85)
+                logger.info(f"✅ サムネイル生成成功: {thumb_size} → {output_path}")
+                return output_filename
+
+        except Exception as e:
+            logger.error(f"❌ サムネイル生成失敗: {input_path} - {e}")
+        return None
+
+    def optimize_image(
+        self,
+        site: str,
+        mode: str,
+        filename: str,
+        max_file_size_kb: int = 1024,
+        output_filename: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        画像を最適化（ファイルサイズを削減）
+
+        Args:
+            site: サイト名
+            mode: モード
+            filename: 元ファイル名
+            max_file_size_kb: 目標ファイルサイズ（KB）
+            output_filename: 出力ファイル名（省略時は元ファイルを上書き）
+
+        Returns:
+            最適化後のファイル名、失敗時は None
+        """
+        if not PIL_AVAILABLE:
+            logger.error("❌ Pillowがインストールされていないため、最適化できません")
+            return None
+
+        input_path = self.base_dir / site / mode / filename
+        if not input_path.exists():
+            logger.error(f"❌ ファイルが見つかりません: {input_path}")
+            return None
+
+        try:
+            with Image.open(input_path) as img:
+                # EXIFの向き情報を適用
+                transposed_img = ImageOps.exif_transpose(img)
+
+                output_name = output_filename or filename
+                output_path = self.base_dir / site / mode / output_name
+
+                # 品質を調整しながら保存
+                quality = 85
+                while quality > 50:
+                    buffer = io.BytesIO()
+                    transposed_img.save(
+                        buffer,
+                        format=img.format or "PNG",
+                        quality=quality,
+                        optimize=True,
+                    )
+                    size_kb = len(buffer.getvalue()) / 1024
+
+                    if size_kb <= max_file_size_kb:
+                        with open(output_path, "wb") as f:
+                            f.write(buffer.getvalue())
+                        logger.info(
+                            f"✅ 最適化成功: {size_kb:.1f}KB (品質: {quality}) → {output_path}"
+                        )
+                        return output_name
+
+                    quality -= 5
+
+                # 最小品質でも目標サイズを超える場合は警告
+                logger.warning(
+                    f"⚠️ 目標サイズ {max_file_size_kb}KB に到達できませんでした（現在: {size_kb:.1f}KB）"
+                )
+                with open(output_path, "wb") as f:
+                    f.write(buffer.getvalue())
+                return output_name
+
+        except Exception as e:
+            logger.error(f"❌ 最適化失敗: {input_path} - {e}")
+        return None
 
     def download_and_save_thumbnail(
         self, thumbnail_url: str, site: str, video_id: str, mode: str = "autopost"
@@ -393,7 +653,7 @@ class ImageManager:
 
         Args:
             thumbnail_url: サムネイルURL
-            site: サイト名 (YouTube)
+            site: サイト名 (YouTube, Niconico, Twitch)
             video_id: 動画ID（ファイル名に使用）
             mode: 保存モード (autopost, import)
 
@@ -428,8 +688,8 @@ class ImageManager:
                     temp_path.unlink()  # 無効なファイルを削除
                     return None
 
-                ext = self._detect_image_extension(image_data)
-                final_filename = f"{safe_video_id}.{ext}"
+                detect_ext = self._detect_image_extension(image_data)
+                final_filename = f"{safe_video_id}.{detect_ext}"
                 final_path = self.base_dir / site / mode / final_filename
 
                 # 既存があれば上書き

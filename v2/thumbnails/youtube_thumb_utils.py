@@ -6,18 +6,19 @@ YouTube サムネイル画像管理ユーティリティ
 YouTube RSS フェッチ後の画像自動ダウンロード・保存を管理
 （RSS フェッチ・パース・DB 保存は youtube_rss.py で管理）
 
+Niconico の niconico_ogp_utils.py に相当する内部モジュール
 """
 
 import logging
-import os
 import sys
+import os
 
 # 親ディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import get_database
-from image_manager import get_image_manager
 from youtube_rss import YouTubeRSS
+from image_manager import get_image_manager
+from database import get_database
 
 logger = logging.getLogger("AppLogger")
 
@@ -35,6 +36,7 @@ class YouTubeThumbManager:
     def ensure_image_download(self, video_id: str, thumbnail_url: str) -> bool:
         """
         YouTube 動画のサムネイル画像をダウンロード・保存し、DB を更新する。
+        （Niconico の _ensure_image_download() に相当）
 
         Args:
             video_id: YouTube 動画 ID
@@ -47,8 +49,8 @@ class YouTubeThumbManager:
             youtube_logger = logging.getLogger("YouTubeLogger")
 
             # image_manager と database のロガーを一時的に YouTubeLogger に変更
-            import database as db_module
             import image_manager as im_module
+            import database as db_module
 
             original_im_logger = im_module.logger
             original_db_logger = db_module.logger

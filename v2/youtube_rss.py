@@ -7,11 +7,10 @@ YouTube チャンネルの RSS を取得・パース・DB に保存する。
 （画像処理は thumbnails/youtube_thumb_utils.py の YouTubeThumbPlugin で管理）
 """
 
-import logging
-from typing import Dict, List
-
 import feedparser
+import logging
 import requests
+from typing import List, Dict
 from image_manager import get_youtube_thumbnail_url
 
 logger = logging.getLogger("AppLogger")
@@ -87,11 +86,21 @@ class YouTubeRSS:
         videos = self.fetch_feed()
         saved_count = 0
         existing_count = 0
+        blacklist_skip_count = 0
         youtube_logger = logging.getLogger("YouTubeLogger")
 
         youtube_logger.info(
             f"[YouTube RSS] 取得した {len(videos)} 個の動画を DB に照合しています..."
         )
+
+        # ★ 新: ブラックリストを取得
+        try:
+            from deleted_video_cache import get_deleted_video_cache
+
+            deleted_cache = get_deleted_video_cache()
+        except ImportError:
+            youtube_logger.warning("deleted_video_cache モジュールが見つかりません")
+            deleted_cache = None
 
         # database モジュールのロガーを一時的に YouTubeLogger に切り替え
         import database as db_module
@@ -101,6 +110,16 @@ class YouTubeRSS:
 
         try:
             for video in videos:
+                # ★ 新: ブラックリスト確認
+                if deleted_cache and deleted_cache.is_deleted(
+                    video["video_id"], source="youtube"
+                ):
+                    youtube_logger.info(
+                        f"⏭️ ブラックリスト登録済みのため、スキップします: {video['title']}"
+                    )
+                    blacklist_skip_count += 1
+                    continue
+
                 # サムネイル URL を取得（多品質フォールバック）
                 thumbnail_url = get_youtube_thumbnail_url(video["video_id"])
 
@@ -121,10 +140,16 @@ class YouTubeRSS:
                         f"[YouTube RSS] New video saved to DB: {video['title']}"
                     )
 
+            summary = f"✅ 保存完了: 新規 {saved_count}, 既存 {existing_count}"
+            if blacklist_skip_count > 0:
+                summary += f", ブラックリスト {blacklist_skip_count}"
+
             if saved_count > 0:
-                youtube_logger.info(f"✅ {saved_count} 個の新着動画を保存しました")
+                youtube_logger.info(summary)
+            elif blacklist_skip_count > 0:
+                youtube_logger.info(summary)
             else:
-                youtube_logger.info("ℹ️ 新着動画はありません")
+                youtube_logger.info(f"ℹ️ 新着動画はありません")
 
         finally:
             # ロガーを元に戻す

@@ -7,9 +7,9 @@ Stream notify on Bluesky - v2 ロギング設定
 ロギングプラグインが導入されている場合は、そちらの設定を優先的に使用。
 """
 
-import logging
 import os
 import sys
+import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -114,17 +114,35 @@ def setup_logging(debug_mode=False):
     logger = logging.getLogger("AppLogger")
     logger.setLevel(logging.DEBUG if debug_mode else logging.INFO)
 
-    # 既にハンドラが設定されている場合はスキップ（重複防止）
+    # 既にハンドラが設定されている場合は PostLogger のみ設定して返す
     if logger.handlers:
+        # ★ 既存ハンドラがある場合でも PostLogger は設定する必要がある
+        post_logger = logging.getLogger("PostLogger")
+        # ロガーレベルも debug_mode に応じて設定！
+        post_logger.setLevel(logging.DEBUG if debug_mode else logging.INFO)
+
+        # AppLogger の handlers（フィルター付き）を PostLogger に追加
+        for handler in logger.handlers:
+            post_logger.addHandler(handler)
+
+        post_logger.propagate = False
         return logger
 
     # --- app.log: INFO以下, LF改行 ---
     app_fh = LFRotatingFileHandler(
         "logs/app.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
-    app_fh.setLevel(logging.DEBUG if debug_mode else logging.INFO)
-    # INFO未満（DEBUGのみ）をapp.logに出力、WARNING以上はerror.logへ
-    app_fh.addFilter(lambda record: record.levelno < logging.WARNING)
+    app_fh.setLevel(logging.DEBUG)  # ★ ハンドラーは常にDEBUGで受け取る
+
+    # フィルター: debug_mode に応じて DEBUG ログの出力を制御
+    if debug_mode:
+        # デバッグモード ON: INFO未満（DEBUGのみ）をapp.logに出力、WARNING以上はerror.logへ
+        app_fh.addFilter(lambda record: record.levelno < logging.WARNING)
+    else:
+        # デバッグモード OFF: INFO以上のみ出力（DEBUGは除外）
+        app_fh.addFilter(
+            lambda record: logging.INFO <= record.levelno < logging.WARNING
+        )
 
     # --- error.log: WARNING以上のみ, LF改行 ---
     error_fh = LFRotatingFileHandler(
@@ -135,9 +153,14 @@ def setup_logging(debug_mode=False):
 
     # --- コンソール ---
     ch = NoExcInfoStreamHandler()
-    ch.setLevel(logging.DEBUG if debug_mode else logging.INFO)
-    # コンソールは INFO 以下のみ出力（WARNING・ERROR は app.log / error.log のみ）
-    ch.addFilter(lambda record: record.levelno < logging.WARNING)
+    ch.setLevel(logging.DEBUG)  # ★ ハンドラーは常にDEBUGで受け取る
+    # コンソール出力フィルター: debug_mode に応じて DEBUG ログの出力を制御
+    if debug_mode:
+        # デバッグモード ON: INFO 以下のみ出力（WARNING・ERROR は app.log / error.log のみ）
+        ch.addFilter(lambda record: record.levelno < logging.WARNING)
+    else:
+        # デバッグモード OFF: INFO以上のみ出力（DEBUGは除外、WARNING・ERROR も除外）
+        ch.addFilter(lambda record: logging.INFO <= record.levelno < logging.WARNING)
 
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -149,6 +172,21 @@ def setup_logging(debug_mode=False):
     logger.addHandler(app_fh)
     logger.addHandler(error_fh)
     logger.addHandler(ch)
+
+    # PostLogger の設定（プラグイン層で使用）
+    post_logger = logging.getLogger("PostLogger")
+    post_logger.setLevel(logging.DEBUG if debug_mode else logging.INFO)
+
+    # 既存のハンドラを削除（重複防止）
+    for handler in post_logger.handlers[:]:
+        post_logger.removeHandler(handler)
+
+    post_logger.addHandler(app_fh)
+    post_logger.addHandler(error_fh)
+    post_logger.addHandler(ch)
+
+    # 親ロガーへの伝播を無効化（親の設定に影響されない）
+    post_logger.propagate = False
 
     mode_msg = "デバッグモード" if debug_mode else "デフォルトのロギング設定"
     logger.info(f"ℹ️  {mode_msg}を使用しています")

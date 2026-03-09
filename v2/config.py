@@ -6,11 +6,10 @@ Stream notify on Bluesky - v2 設定管理
 .env から設定を読み込み、バリデーションを行う。
 """
 
-import logging
 import os
-from pathlib import Path
-
+import logging
 from dotenv import load_dotenv
+from pathlib import Path
 
 logger = logging.getLogger("AppLogger")
 
@@ -157,6 +156,48 @@ class Config:
 
         # タイムゾーン（オプション）
         self.timezone = os.getenv("TIMEZONE", "system")
+
+        # ニコニコプラグイン導入有無を検出
+        try:
+            import importlib.util
+
+            self.niconico_plugin_exists = (
+                importlib.util.find_spec("plugins.niconico_plugin") is not None
+            )
+        except Exception:
+            self.niconico_plugin_exists = False
+
+        # ニコニコユーザーID（オプション）
+        self.niconico_user_id = os.getenv("NICONICO_USER_ID", "").strip()
+        if self.niconico_plugin_exists:
+            if self.niconico_user_id:
+                logger.info("有効なユーザーIDが設定されています。")
+                logger.info("ニコニコ連携機能を有効化しました。")
+            else:
+                logger.info("有効なユーザーIDが設定されていません。")
+                logger.info("ニコニコ連携機能を無効化しました。")
+        else:
+            # バリデーション段階ではINFOのみ
+            logger.info(
+                "ニコニコプラグインが導入されていません。RSS取得のみで動作します。"
+            )
+
+        # ニコニコポーリング間隔（分）
+        try:
+            self.niconico_poll_interval_minutes = int(
+                os.getenv("NICONICO_POLL_INTERVAL", "10")
+            )
+            if (
+                self.niconico_poll_interval_minutes < 5
+                or self.niconico_poll_interval_minutes > 60
+            ):
+                logger.warning(
+                    f"ニコニコポーリング間隔が範囲外です (5〜60): {self.niconico_poll_interval_minutes}。10分に設定します。"
+                )
+                self.niconico_poll_interval_minutes = 10
+        except ValueError:
+            logger.warning("NICONICO_POLL_INTERVAL が無効です。10分に設定します。")
+            self.niconico_poll_interval_minutes = 10
 
     def _log_operation_mode(self):
         """現在の動作モードをログに出力"""

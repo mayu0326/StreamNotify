@@ -14,22 +14,27 @@ YouTube Data API プラグイン（クォータ対応版）
 - videos.list（詳細取得）: 1ユニット（最大50件/リクエスト）
 """
 
-import json
-import logging
 import os
+import logging
 import time
+import json
+from typing import Dict, Any, Optional, Tuple, List
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
 import requests
+
+from plugin_interface import NotificationPlugin
 from database import Database
 from image_manager import get_youtube_thumbnail_url
-from plugin_interface import NotificationPlugin
 
 logger = logging.getLogger("AppLogger")
 
 API_BASE = "https://www.googleapis.com/youtube/v3"
-CHANNEL_ID_CACHE_FILE = "data/youtube_channel_cache.json"
+
+# キャッシュファイルのパス（絶対パス対応）
+_SCRIPT_DIR = Path(__file__).parent.parent  # v2/ ディレクトリ
+CHANNEL_ID_CACHE_FILE = str(_SCRIPT_DIR / "data" / "youtube_channel_cache.json")
+VIDEO_DETAIL_CACHE_FILE = str(_SCRIPT_DIR / "data" / "youtube_video_detail_cache.json")
+CACHE_EXPIRY_DAYS = 7  # キャッシュの有効期限（日数）
 
 
 class YouTubeAPIPlugin(NotificationPlugin):
@@ -46,20 +51,50 @@ class YouTubeAPIPlugin(NotificationPlugin):
     def __init__(self):
         if hasattr(self, "_initialized") and self._initialized:
             return
-        self.api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
-        self.channel_identifier = os.getenv("YOUTUBE_CHANNEL_ID", "").strip()
+
+        # 設定から読み込み（環境変数の前に config から読み込みを試みる）
+        try:
+            from config import get_config
+
+            config = get_config("settings.env")
+            self.api_key = config.youtube_api_key or os.getenv("YOUTUBE_API_KEY", "")
+            self.channel_identifier = config.youtube_channel_id or os.getenv(
+                "YOUTUBE_CHANNEL_ID", ""
+            )
+        except Exception:
+            # フォールバック: 環境変数から直接読み込み
+            self.api_key = os.getenv("YOUTUBE_API_KEY", "")
+            self.channel_identifier = os.getenv("YOUTUBE_CHANNEL_ID", "")
+
+        self.api_key = self.api_key.strip()
+        self.channel_identifier = self.channel_identifier.strip()
+
         self.db = Database()
         self.channel_id: Optional[str] = None
         self.session = requests.Session()
+        self.live_auto_post_start = (
+            os.getenv("YOUTUBE_LIVE_AUTO_POST_START", "false").lower() == "false"
+        )
+        self.live_auto_post_end = (
+            os.getenv("YOUTUBE_LIVE_AUTO_POST_END", "false").lower() == "false"
+        )
+        self.live_detection_enabled = (
+            self.live_auto_post_start or self.live_auto_post_end
+        )
 
         # APIコスト管理
         self.daily_quota = 10000
         self.daily_cost = 0
-        self.last_request_time: float = 0.0
+        self.last_request_time: float = 0
         self.request_interval = 0.5  # 秒（リクエスト間最小間隔）
+
+        # ビデオ詳細キャッシュ
+        self.video_detail_cache: Dict[str, Dict[str, Any]] = {}
+        self.cache_timestamps: Dict[str, float] = {}
 
         # キャッシュ読み込み
         self._load_channel_cache()
+        self._load_video_detail_cache()
 
         # チャンネルID解決（キャッシュからまず確認）
         if self.api_key and self.channel_identifier:
@@ -99,6 +134,13 @@ class YouTubeAPIPlugin(NotificationPlugin):
             logger.error("❌ YouTube API: video_id が指定されていません")
             return False
 
+        # YouTube ID 形式の検証（Niconico など他形式のスキップ）
+        if not self._is_valid_youtube_video_id(video_id):
+            logger.debug(
+                f"⏭️ YouTube API: YouTube 形式ではない video_id をスキップ: {video_id}"
+            )
+            return True  # エラーではなく「対応不可」として True を返す
+
         details = self._fetch_video_detail(video_id)
         if not details:
             logger.error(f"❌ YouTube API: 動画詳細取得に失敗しました: {video_id}")
@@ -120,6 +162,26 @@ class YouTubeAPIPlugin(NotificationPlugin):
             # フォールバック: API から取得したもの
             thumbnail_url = snippet.get("thumbnails", {}).get("high", {}).get("url", "")
 
+        # アーカイブ（放送終了後）は通常の動画通知フローに乗せるため content_type を archive に、live_status を None に調整
+        # (ユーザー要件: ライフ判定オフ時でも type: archive になったものだけは type: video と同等に扱い、通知フローに乗せる)
+        if not self.live_detection_enabled and content_type == "archive":
+            # 内部的には archive として保持しつつ、GUI等の通知対象として認識させるための調整が必要な場合はここで行う
+            # 現状の database.py 仕様では content_type="archive" でも通知対象になり得るため、そのまま保存
+            pass
+
+        # ライブ配信中/予定かつ判定機能オフの場合は、外部連携に乗せない（= posted フラグをあらかじめ立てる、または特殊な状態にする）
+        # ただし、DBには「履歴データ」として保存する必要がある。
+        # ここでは後続の通知処理で無視されるよう、is_new が True の場合でも通知キューに入らないような制御、
+        # あるいは content_type を一時的に特殊な値にするなどの対策が考えられるが、
+        # ユーザーの意図「単なる履歴データとして蓄積」を汲み取り、
+        # ライブ中/予定のものは「投稿済み扱い(posted=1)」として保存することで、手動投稿リストからも除外する。
+        is_posted = 0
+        if not self.live_detection_enabled and content_type == "live":
+            logger.info(
+                f"ℹ️ YouTube API: ライブ判定オフのため、ライブ動画を履歴データとして保存します: {video_id}"
+            )
+            is_posted = 1  # 投稿済み扱いにすることで通知フローを遮断
+
         return self.db.insert_video(
             video_id=video_id,
             title=title,
@@ -130,6 +192,7 @@ class YouTubeAPIPlugin(NotificationPlugin):
             content_type=content_type,
             live_status=live_status,
             is_premiere=is_premiere,
+            posted=is_posted,
         )
 
     # --- キャッシュ機構 ---
@@ -166,9 +229,78 @@ class YouTubeAPIPlugin(NotificationPlugin):
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(cache, f, ensure_ascii=False, indent=2)
 
-            logger.info("💾 チャンネルIDをキャッシュに保存しました")
+            logger.info(f"💾 チャンネルIDをキャッシュに保存しました")
         except Exception as e:
             logger.error(f"❌ チャンネルキャッシュ保存エラー: {e}")
+
+    # --- ビデオ詳細キャッシュ機構 ---
+    def _load_video_detail_cache(self) -> None:
+        """ビデオ詳細をキャッシュから読み込み"""
+        try:
+            cache_path = Path(VIDEO_DETAIL_CACHE_FILE)
+            if cache_path.exists():
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    cache_data = json.load(f)
+                    # { video_id: { "data": {...}, "timestamp": 1234567890.0 } }
+                    for video_id, entry in cache_data.items():
+                        self.video_detail_cache[video_id] = entry.get("data", {})
+                        self.cache_timestamps[video_id] = entry.get("timestamp", 0)
+
+                logger.info(
+                    f"📦 ビデオ詳細キャッシュを読み込みました: {len(self.video_detail_cache)} 件"
+                )
+        except Exception as e:
+            logger.warning(f"⚠️ ビデオ詳細キャッシュ読み込みエラー: {e}")
+
+    def _save_video_detail_cache(self) -> None:
+        """ビデオ詳細キャッシュをファイルに保存"""
+        try:
+            cache_path = Path(VIDEO_DETAIL_CACHE_FILE)
+            cache_path.parent.mkdir(exist_ok=True)
+
+            cache_data = {}
+            for video_id, details in self.video_detail_cache.items():
+                cache_data[video_id] = {
+                    "data": details,
+                    "timestamp": self.cache_timestamps.get(video_id, time.time()),
+                }
+
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+            logger.debug(f"💾 ビデオ詳細キャッシュを保存しました: {len(cache_data)} 件")
+        except Exception as e:
+            logger.error(f"❌ ビデオ詳細キャッシュ保存エラー: {e}")
+
+    def _is_cache_valid(self, timestamp: float) -> bool:
+        """キャッシュの有効性を確認（有効期限チェック）"""
+        expiry_seconds = CACHE_EXPIRY_DAYS * 24 * 60 * 60
+        return (time.time() - timestamp) < expiry_seconds
+
+    def _get_cached_video_detail(self, video_id: str) -> Optional[Dict[str, Any]]:
+        """キャッシュからビデオ詳細を取得（有効期限チェック付き）"""
+        if video_id in self.video_detail_cache:
+            timestamp = self.cache_timestamps.get(video_id, 0)
+            if self._is_cache_valid(timestamp):
+                logger.debug(f"📦 キャッシュから取得: {video_id}")
+                return self.video_detail_cache[video_id]
+            else:
+                # 期限切れなので削除
+                logger.debug(f"🗑️ キャッシュが期限切れ: {video_id}")
+                del self.video_detail_cache[video_id]
+                del self.cache_timestamps[video_id]
+        return None
+
+    def _cache_video_detail(self, video_id: str, details: Dict[str, Any]) -> None:
+        """ビデオ詳細をキャッシュに保存"""
+        self.video_detail_cache[video_id] = details
+        self.cache_timestamps[video_id] = time.time()
+
+    def clear_video_detail_cache(self) -> None:
+        """ビデオ詳細キャッシュをクリア"""
+        self.video_detail_cache.clear()
+        self.cache_timestamps.clear()
+        logger.info(f"✅ ビデオ詳細キャッシュをクリアしました")
 
     # --- レート制限・リクエスト管理 ---
     def _throttle_request(self) -> None:
@@ -323,25 +455,36 @@ class YouTubeAPIPlugin(NotificationPlugin):
 
     # --- 動画詳細取得 ---
     def _fetch_video_detail(self, video_id: str) -> Optional[Dict[str, Any]]:
-        """単一動画の詳細を取得（1ユニット）"""
+        """単一動画の詳細を取得（キャッシュ優先、1ユニット）"""
+        # まずキャッシュを確認
+        cached = self._get_cached_video_detail(video_id)
+        if cached:
+            return cached
+
+        # キャッシュなし→API から取得
         data = self._get(
             "videos",
             {
                 "part": "snippet,contentDetails,liveStreamingDetails,status",
                 "id": video_id,
-                "maxResults": 1,
             },
             expected_cost=1,
             operation=f"video detail: {video_id}",
         )
         items = data.get("items", []) if data else []
-        return items[0] if items else None
+        if items:
+            details = items[0]
+            # キャッシュに保存
+            self._cache_video_detail(video_id, details)
+            return details
+
+        return None
 
     def fetch_video_details_batch(
         self, video_ids: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """
-        最大50件の動画詳細をバッチ取得（1ユニット）
+        最大50件の動画詳細をバッチ取得（キャッシュ優先、1ユニット）
 
         Args:
             video_ids: 動画IDのリスト（最大50件）
@@ -352,10 +495,26 @@ class YouTubeAPIPlugin(NotificationPlugin):
         if not video_ids:
             return {}
 
-        # 50件ずつ分割
         results = {}
-        for i in range(0, len(video_ids), 50):
-            batch = video_ids[i: i + 50]
+        to_fetch = []
+
+        # キャッシュから取得可能な分を抽出
+        for video_id in video_ids:
+            cached = self._get_cached_video_detail(video_id)
+            if cached:
+                results[video_id] = cached
+            else:
+                to_fetch.append(video_id)
+
+        if not to_fetch:
+            logger.debug(f"📦 全動画がキャッシュから取得されました: {len(results)} 件")
+            return results
+
+        logger.debug(f"🔍 キャッシュ外の動画を API から取得: {len(to_fetch)} 件")
+
+        # 50件ずつ分割してAPI取得
+        for i in range(0, len(to_fetch), 50):
+            batch = to_fetch[i : i + 50]
             batch_str = ",".join(batch)
 
             data = self._get(
@@ -363,7 +522,6 @@ class YouTubeAPIPlugin(NotificationPlugin):
                 {
                     "part": "snippet,contentDetails,liveStreamingDetails,status",
                     "id": batch_str,
-                    "maxResults": 50,
                 },
                 expected_cost=1,
                 operation=f"batch video details: {len(batch)} 件",
@@ -372,60 +530,140 @@ class YouTubeAPIPlugin(NotificationPlugin):
             if data:
                 for item in data.get("items", []):
                     video_id = item.get("id")
-                    results[video_id] = item
+                    if video_id:
+                        results[video_id] = item
+                        # キャッシュに保存
+                        self._cache_video_detail(video_id, item)
 
         return results
 
-    # --- 分類ロジック ---
-    def _classify_video(
-        self, details: Dict[str, Any]
+    # --- ID 検証 ---
+    def _is_valid_youtube_video_id(self, video_id: str) -> bool:
+        """
+        YouTube 動画ID 形式の検証
+
+        YouTube 動画ID は 11 文字の英数字（A-Z, a-z, 0-9, -, _）
+        例: dQw4w9WgXcQ
+
+        Niconico ID（sm45414087）など他形式は False を返す
+
+        Args:
+            video_id: 検証対象の ID
+
+        Returns:
+            True: YouTube 形式, False: 他の形式（Niconico など）
+        """
+        import re
+
+        # YouTube 動画ID: 11 文字、A-Za-z0-9-_
+        if re.match(r"^[A-Za-z0-9_-]{11}$", video_id):
+            return True
+        return False
+
+    # --- 分類ロジック（コア・共通部分） ---
+    @staticmethod
+    def _classify_video_core(
+        details: Dict[str, Any],
     ) -> Tuple[str, Optional[str], bool]:
         """
-        動画の種別と状態を判別（content_type, live_status, is_premiere）
+        ★ System コメント 1-7 分類仕様 ★
+
+        動画の種別と時間的状態を判別する共通コア実装
+        YouTube API プラグイン・YouTube Live プラグイン両者から呼び出し
+
+        【System 1】liveBroadcastContent の値による第一判定
+        - "none"      → 通常動画（content_type="video"）
+        - "live"      → ライブ配信関連
+        - "upcoming"  → 予定配信
+        - "completed" → 過去配信
+
+        【System 2】liveStreamingDetails フィールドの検査順序
+        - actualEndTime あり    → 配信終了（"archive", "completed"）
+        - actualStartTime あり  → 配信中（"live", "live"）
+        - scheduledStartTime あり → 予定中（"live", "upcoming"）
+
+        【System 3】プレミア公開判定（is_premiere フラグ）
+        - uploadStatus == "processed" かつ broadcast_type が "live" or "upcoming"
+        - → プレミア配信である可能性
+
+        【System 4】liveStreamingDetails 無し時の代替判定
+        - broadcast_type を直接参照して判定
+
+        【System 5】エッジケース
+        - status.uploadStatus が "uploaded" → 未処理の状態
+        - snippet フィールドが不完全 → デフォルト値で処理
+
+        【System 6】戻り値の構造
+        Returns: (content_type, live_status, is_premiere)
+            - content_type: "video", "live", "archive" のいずれか
+            - live_status: None (通常動画), "upcoming", "live", "completed"
+            - is_premiere: bool (プレミア公開フラグ)
+
+        【System 7】アーカイブ判定（追加ロジック）
+        - 従来は actualEndTime で判定していたが、API が返さないケースがある
+        - broadcast_type == "completed" の場合もアーカイブと判定
+        - uploadStatus == "processed" かつ broadcast_type == "completed"
+        - → 配信完了状態のライブ配信（ライブアーカイブ）
+
+        Args:
+            details: API の videos.list で取得した動画詳細辞書
 
         Returns:
             (content_type, live_status, is_premiere)
-            - content_type: "video", "live", "archive"
-            - live_status: None, "upcoming", "live", "completed"
-            - is_premiere: プレミア公開フラグ
         """
         snippet = details.get("snippet", {})
         status = details.get("status", {})
         live = details.get("liveStreamingDetails", {})
 
-        # 1. snippet.liveBroadcastContent で第一判定
+        # System 1: liveBroadcastContent で補助判定
         broadcast_type = snippet.get("liveBroadcastContent", "none")
 
-        if broadcast_type == "none":
-            # 通常動画
-            return "video", None, False
-
-        # 2. ライブ/プレミア判定
+        # System 3: プレミア公開判定
         is_premiere = False
-
         if live:
-            # プレミア公開判定
             if status.get("uploadStatus") == "processed" and broadcast_type in (
                 "live",
                 "upcoming",
             ):
                 is_premiere = True
 
-            # ライブの時間的状態判定
+            # ★ 重要: broadcast_type が "none" でも liveStreamingDetails がある場合
+            # System 2: ライブの時間的状態判定（タイムスタンプが最優先）
             if live.get("actualEndTime"):
+                # 配信が終了している → アーカイブ
                 return "archive", "completed", is_premiere
             elif live.get("actualStartTime"):
+                # 配信が開始しているが終了していない → 配信中
                 return "live", "live", is_premiere
             elif live.get("scheduledStartTime"):
+                # 配信がスケジュール済み → 予定中
                 return "live", "upcoming", is_premiere
 
-        # liveStreamingDetails がない場合は broadcast_type で判定
+        # System 4: liveStreamingDetails がない、または上記条件に当てはまらない場合
+        # → broadcast_type で補助判定
         if broadcast_type == "live":
             return "live", "live", is_premiere
         elif broadcast_type == "upcoming":
             return "live", "upcoming", is_premiere
+        elif broadcast_type == "completed":
+            # System 7: completed ケース
+            return "archive", "completed", is_premiere
 
+        # System 5: デフォルト → 通常動画
         return "video", None, False
+
+    def _classify_video(
+        self, details: Dict[str, Any]
+    ) -> Tuple[str, Optional[str], bool]:
+        """
+        動画の種別と状態を判別（content_type, live_status, is_premiere）
+
+        ⚠️ このメソッドは _classify_video_core() へ委譲（後方互換性のためラッパー保持）
+
+        Returns:
+            (content_type, live_status, is_premiere)
+        """
+        return self._classify_video_core(details)
 
     def on_enable(self) -> None:
         """プラグイン有効化時"""
@@ -437,6 +675,8 @@ class YouTubeAPIPlugin(NotificationPlugin):
         logger.info(
             f"   本日の API コスト: {self.daily_cost}/{self.daily_quota} ユニット"
         )
+        # 終了時にキャッシュを保存
+        self._save_video_detail_cache()
 
 
 def get_plugin():

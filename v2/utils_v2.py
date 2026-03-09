@@ -6,12 +6,15 @@ Stream notify on Bluesky - v2 ユーティリティ
 YouTube → Bluesky 通知ボット用の共通ユーティリティ関数を提供します。
 """
 
-import logging
-import os
 from datetime import datetime, timezone
-
+from typing import Any
+import os
+import logging
 import pytz
 from tzlocal import get_localzone
+
+# サムネイル関連ユーティリティ（ニコニコOGP/バックフィル）
+from thumbnails.niconico_ogp_backfill import backfill_niconico, fetch_thumbnail_url
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
@@ -41,7 +44,7 @@ def format_datetime_filter(iso_datetime_str, fmt="%Y-%m-%d %H:%M %Z"):
 
         # 環境変数からタイムゾーンを取得（未指定ならシステムローカル）
         target_tz_name = os.getenv("TIMEZONE", "system")
-        target_tz = None
+        target_tz: Any = None
 
         if target_tz_name.lower() == "system":
             try:

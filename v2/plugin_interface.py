@@ -7,7 +7,7 @@ Stream notify on Bluesky - プラグインインターフェース
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Dict, Any, Optional
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"

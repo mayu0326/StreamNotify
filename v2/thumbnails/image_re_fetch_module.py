@@ -17,9 +17,9 @@ thumbnail_urlから画像を再ダウンロードして保存します。
     --verbose   : 詳細ログを表示
 """
 
+import sys
 import logging
 import os
-import sys
 from pathlib import Path
 
 # v2ルートをパスに追加
@@ -30,6 +30,7 @@ Path("logs").mkdir(exist_ok=True)
 
 from database import get_database
 from image_manager import get_image_manager, get_youtube_thumbnail_url
+from .niconico_ogp_utils import get_niconico_ogp_url
 
 # ThumbnailsLogger（logging_plugin.pyで設定管理）
 logger = logging.getLogger("ThumbnailsLogger")
@@ -74,13 +75,20 @@ def redownload_missing_images(dry_run: bool = False):
                 thumbnail_url = best_url
                 logger.info(f"✅ YouTube サムネイル再取得: {video_id}")
 
+        # ニコニコはOGPから最新URLを再取得して利用
+        elif source == "niconico":
+            ogp_url = get_niconico_ogp_url(video_id)
+            if ogp_url:
+                thumbnail_url = ogp_url
+                logger.info(f"✅ ニコニコ OGP 再取得: {video_id}")
+
         print(f"[{i}/{len(videos)}] {title}")
         print(f"  ID: {video_id}")
         print(f"  Source: {source}")
         print(f"  URL: {thumbnail_url}")
 
         if dry_run:
-            print("  → [DRY RUN] ダウンロード対象\n")
+            print(f"  → [DRY RUN] ダウンロード対象\n")
             continue
 
         # サムネイルをダウンロード
@@ -101,10 +109,10 @@ def redownload_missing_images(dry_run: bool = False):
                 print(f"  ✅ 成功: {filename}\n")
                 success_count += 1
             else:
-                print("  ⚠️ ダウンロード成功、DB更新失敗\n")
+                print(f"  ⚠️ ダウンロード成功、DB更新失敗\n")
                 error_count += 1
         else:
-            print("  ❌ ダウンロード失敗\n")
+            print(f"  ❌ ダウンロード失敗\n")
             error_count += 1
 
     # サマリー表示

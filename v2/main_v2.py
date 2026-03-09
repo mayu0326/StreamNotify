@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 """
 Stream notify on Bluesky - v2 メインスクリプト
@@ -10,50 +10,46 @@ DB に収集。投稿対象は GUI で選択。
 GUI はマルチスレッドで動作（メインループは継続）
 """
 
-import logging
-import os
-import signal
 import sys
-import threading
+import os
 import time
+import signal
+import logging
+import threading
 import tkinter as tk
 from datetime import datetime, timedelta
 
-# プラグインマネージャ関連
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# バージョン情報
+from app_version import get_version_info, get_full_version_info
 
-from typing import Optional
+# プラグインマネージャ関連
+from plugin_manager import PluginManager
 
 # アセットマネージャ
 from asset_manager import get_asset_manager
 
-# バージョン情報
-from app_version import __version__
+# ロギング設定
+from logging_config import setup_logging
 
 # GUI クラスをインポート
 from gui_v2 import StreamNotifyGUI
 
-# ロギング設定
-from logging_config import setup_logging
-from plugin_manager import PluginManager
-
-logger: Optional[logging.Logger] = None  # グローバル変数として後で初期化
+logger = logging.getLogger(__name__)
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
 __license__ = "GPLv2"
 
 
-def run_gui(db, plugin_manager, stop_event):
+def run_gui(db, plugin_manager, stop_event, bluesky_core=None):
     """GUI をスレッドで実行 (プラグイン対応)"""
     root = tk.Tk()
-    gui = StreamNotifyGUI(root, db, plugin_manager)
+    gui = StreamNotifyGUI(root, db, plugin_manager, bluesky_core=bluesky_core)
 
     def on_closing():
         stop_event.set()
         root.destroy()
-        if logger:
-            logger.info("管理画面が閉じられたためアプリケーションを終了します...")
+        logger.info("管理画面が閉じられたためアプリケーションを終了します...")
         sys.exit(0)
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
@@ -62,24 +58,23 @@ def run_gui(db, plugin_manager, stop_event):
 
 def signal_handler(signum, frame):
     """シグナルハンドラ"""
-    if logger:
-        logger.info("\n[INFO] 管理画面が閉じられたためアプリケーションを終了します...")
+    logger.info("\n[INFO] 管理画面が閉じられたためアプリケーションを終了します...")
     sys.exit(0)
 
 
 def main():
     """メインエントリポイント (v2: プラグインアーキテクチャ対応)"""
-    global logger
+
+    # バージョン情報をコンソールに出力
+    print(f"StreamNotify on Bluesky {get_version_info()}")
 
     try:
         from config import get_config
 
         config = get_config("settings.env")
-        logger = setup_logging(debug_mode=config.debug_mode)
-        logger.info("=" * 60)
-        logger.info(f"StreamNotify on Bluesky v{__version__} を起動しています...")
+        setup_logging(debug_mode=config.debug_mode)
+        logger.info(f"StreamNotify on Bluesky {get_version_info()}")
         logger.info(f"動作モードは: {config.operation_mode} に設定されています。")
-        logger.info("=" * 60)
     except Exception as e:
         print(f"設定の読み込みに失敗しました: {e}")
         sys.exit(1)
@@ -95,6 +90,23 @@ def main():
     except Exception as e:
         logger.error(f"データベースの読み込みに失敗しました: {e}")
         sys.exit(1)
+
+    # ★ 新: 削除済み動画ブラックリストを初期化
+    try:
+        from deleted_video_cache import get_deleted_video_cache
+
+        deleted_cache = get_deleted_video_cache()
+        total_deleted = deleted_cache.get_deleted_count()
+        if total_deleted > 0:
+            logger.info(
+                f"🔒 ブラックリストから削除済み動画 {total_deleted} 件を読み込みました"
+            )
+        else:
+            logger.debug("ブラックリストはクリア状態です")
+    except ImportError:
+        logger.warning("deleted_video_cache モジュールが見つかりません")
+    except Exception as e:
+        logger.error(f"ブラックリストの初期化に失敗しました: {e}")
 
     try:
         logger.info("[YouTube] YouTubeRSS の取得を準備しています...")
@@ -118,7 +130,13 @@ def main():
         for f in os.listdir("plugins")
         if f.endswith(".py")
         and not f.startswith("_")
-        and f not in ("youtube_api_plugin.py",)
+        and f
+        not in (
+            "bluesky_plugin.py",
+            "niconico_plugin.py",
+            "youtube_api_plugin.py",
+            "youtube_live_plugin.py",
+        )
     ]
     for pf in plugin_files:
         plugin_name = pf[:-3]
@@ -146,6 +164,16 @@ def main():
     except Exception as e:
         logger.debug(f"YouTubeAPI プラグインのロード失敗: {e}")
 
+    # YouTubeLive 検出プラグインを手動でロード・有効化
+    try:
+        plugin_manager.load_plugin(
+            "youtube_live_plugin", os.path.join("plugins", "youtube_live_plugin.py")
+        )
+        plugin_manager.enable_plugin("youtube_live_plugin")
+        asset_manager.deploy_plugin_assets("youtube_live_plugin")
+    except Exception as e:
+        logger.debug(f"YouTubeLive 検出プラグインのロード失敗: {e}")
+
     if config.youtube_api_plugin_exists:
         if config.youtube_api_plugin_enabled:
             logger.info(
@@ -161,22 +189,138 @@ def main():
 
     # Bluesky コア機能をロード（プラグインマネージャーには登録しない - 内部ライブラリとして機能）
     try:
-        from bluesky_v2 import BlueskyMinimalPoster
+        from bluesky_core import BlueskyMinimalPoster
 
         bluesky_core = BlueskyMinimalPoster(
-            config.bluesky_username, config.bluesky_password
+            config.bluesky_username,
+            config.bluesky_password,
+            dry_run=not config.bluesky_post_enabled,
         )
-        logger.info("✅ Bluesky コア機能を初期化しました")
+        logger.info(
+            f"✅ Bluesky コア機能を初期化しました（テキスト投稿 + URLリンク化）"
+        )
     except Exception as e:
         logger.warning(f"⚠️  Bluesky コア機能の初期化に失敗しました: {e}")
         bluesky_core = None
 
+    # Bluesky 拡張機能プラグイン（画像添付・テンプレート）をロード
+    # プラグインがない場合でも、コア機能（テキスト投稿）は引き続き利用可能
+    bluesky_plugin_available = False
+    try:
+        from plugins.bluesky_plugin import BlueskyImagePlugin
+
+        bluesky_image_plugin = BlueskyImagePlugin(
+            config.bluesky_username,
+            config.bluesky_password,
+            dry_run=not config.bluesky_post_enabled,
+            minimal_poster=bluesky_core,
+        )
+        plugin_manager.loaded_plugins["bluesky_image_plugin"] = bluesky_image_plugin
+        plugin_manager.enable_plugin("bluesky_image_plugin")
+        asset_manager.deploy_plugin_assets("bluesky_plugin")
+        bluesky_plugin_available = True
+        logger.info(
+            f"✅ Bluesky 拡張機能プラグインを有効化しました（画像添付機能: 有効）"
+        )
+    except Exception as e:
+        logger.warning(f"⚠️  Bluesky 拡張機能プラグインの導入に失敗しました: {e}")
+        logger.info(
+            f"ℹ️ プラグインがない場合でも、コア機能（テキスト投稿 + URLリンク化）は利用可能です"
+        )
+
+    if config.niconico_plugin_exists:
+        try:
+            from plugins.niconico_plugin import NiconicoPlugin
+
+            niconico_plugin = NiconicoPlugin(
+                user_id=config.niconico_user_id,
+                poll_interval=config.niconico_poll_interval_minutes,
+                db=db,
+                user_name=os.getenv("NICONICO_USER_NAME"),
+            )
+            plugin_manager.loaded_plugins["niconico_plugin"] = niconico_plugin
+
+            if niconico_plugin.is_available():
+                logger.info(
+                    "[ニコニコ連携] 有効なユーザーIDを確認しました。連携機能を有効化します。"
+                )
+                plugin_manager.enable_plugin("niconico_plugin")
+                asset_manager.deploy_plugin_assets("niconico_plugin")
+                niconico_plugin.start_monitoring()
+            else:
+                logger.info(
+                    "[ニコニコ連携] ユーザーIDが有効でないため連携機能を無効化します。"
+                )
+        except Exception as e:
+            logger.warning(
+                f"[ニコニコ連携] 初期化エラー: {type(e).__name__}: {e}", exc_info=True
+            )
+    else:
+        logger.info("[ニコニコ連携] ニコニコ連携プラグインは導入されていません。")
+
     stop_event = threading.Event()
     gui_thread = threading.Thread(
-        target=run_gui, args=(db, plugin_manager, stop_event), daemon=True
+        target=run_gui, args=(db, plugin_manager, stop_event, bluesky_core), daemon=True
     )
     gui_thread.start()
     logger.info("✅ アプリケーションの起動が完了しました。 管理画面を開きます。")
+
+    # ===== YouTube Live 終了検知用の定期ポーリングスレッド =====
+    def start_youtube_live_polling():
+        """YouTubeLive ライブ終了検知の定期ポーリングを開始"""
+        import time
+
+        # ポーリング間隔（分） - 最短15分、最長1時間に制限
+        poll_interval_minutes = int(os.getenv("YOUTUBE_LIVE_POLL_INTERVAL", "15"))
+
+        # バリデーション：最短15分、最長60分
+        if poll_interval_minutes < 15:
+            logger.warning(
+                f"⚠️ YOUTUBE_LIVE_POLL_INTERVAL={poll_interval_minutes} は短すぎます（最短15分）"
+            )
+            poll_interval_minutes = 15
+        elif poll_interval_minutes > 60:
+            logger.warning(
+                f"⚠️ YOUTUBE_LIVE_POLL_INTERVAL={poll_interval_minutes} は長すぎます（最長60分）"
+            )
+            poll_interval_minutes = 60
+
+        auto_post_end = (
+            os.getenv("YOUTUBE_LIVE_AUTO_POST_END", "true").lower() == "true"
+        )
+
+        if not auto_post_end:
+            logger.info(
+                "ℹ️ YOUTUBE_LIVE_AUTO_POST_END=false のためライブ終了検知は無効です"
+            )
+            return
+
+        logger.info(
+            f"📡 YouTubeLive ライブ終了検知ポーリングを開始します（間隔: {poll_interval_minutes} 分）"
+        )
+
+        while not stop_event.is_set():
+            try:
+                live_plugin = plugin_manager.get_plugin("youtube_live_plugin")
+                if live_plugin and live_plugin.is_available():
+                    logger.debug("🔄 YouTubeLive ライブ終了チェック実行...")
+                    live_plugin.poll_live_status()
+                else:
+                    logger.debug("ℹ️ YouTubeLive プラグインが利用不可")
+            except Exception as e:
+                logger.error(f"❌ ライブ終了チェックエラー: {e}")
+
+            # 待機
+            for _ in range(poll_interval_minutes * 60):
+                if stop_event.is_set():
+                    break
+                time.sleep(1)
+
+    # ライブ終了検知スレッド開始
+    live_polling_thread = threading.Thread(
+        target=start_youtube_live_polling, daemon=True
+    )
+    live_polling_thread.start()
 
     polling_count = 0
     last_post_time = None
@@ -226,12 +370,14 @@ def main():
                             "投稿対象となる動画が指定されていません。管理画面から設定してください。"
                         )
                 else:
-                    assert last_post_time is not None
-                    elapsed = (now - last_post_time).total_seconds() / 60
-                    remaining = POST_INTERVAL_MINUTES - elapsed
-                    logger.info(
-                        f" 投稿間隔制限中。次の投稿まで約 {remaining:.1f} 分待機。"
-                    )
+                    if last_post_time is not None:
+                        elapsed = (now - last_post_time).total_seconds() / 60
+                        remaining = POST_INTERVAL_MINUTES - elapsed
+                        logger.info(
+                            f" 投稿間隔制限中。次の投稿まで約 {remaining:.1f} 分待機。"
+                        )
+                    else:
+                        logger.info(" 投稿間隔制限中ですが、前回の投稿時刻が不明です。")
 
             logger.info(
                 f"次のポーリングまで {config.poll_interval_minutes} 分待機中..."
@@ -243,8 +389,26 @@ def main():
                 time.sleep(1)
 
     except KeyboardInterrupt:
-        if logger:
-            logger.info("停止シグナルを受信しました。終了します。")
+        if "niconico_plugin" in plugin_manager.loaded_plugins:
+            try:
+                niconico_plugin = plugin_manager.loaded_plugins.get("niconico_plugin")
+                if niconico_plugin and niconico_plugin.is_available():
+                    logger.debug("[ニコニコプラグイン] 監視停止中...")
+                    niconico_plugin.stop_monitoring()
+            except Exception as e:
+                logger.debug(f"[ニコニコプラグイン停止] エラー: {e}")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"[予期せぬエラー] {type(e).__name__}: {e}", exc_info=True)
+        if "niconico_plugin" in plugin_manager.loaded_plugins:
+            try:
+                niconico_plugin = plugin_manager.loaded_plugins.get("niconico_plugin")
+                if niconico_plugin and niconico_plugin.is_available():
+                    logger.debug("[ニコニコプラグイン] 監視停止中...")
+                    niconico_plugin.stop_monitoring()
+            except Exception as e:
+                logger.debug(f"[ニコニコプラグイン停止] エラー: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

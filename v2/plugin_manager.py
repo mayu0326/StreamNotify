@@ -6,13 +6,12 @@ Stream notify on Bluesky - プラグインマネージャー
 プラグインの動的な読み込み、管理、実行を担当します。
 """
 
-import importlib.util
-import logging
 import os
 import sys
+import logging
+import importlib.util
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
 from plugin_interface import NotificationPlugin
 
 logger = logging.getLogger("AppLogger")
@@ -25,7 +24,15 @@ __license__ = "GPLv2"
 
 
 class PluginManager:
-    """プラグインを管理するクラス"""
+    """プラグインを管理するクラス (シングルトン)"""
+
+    _instance = None
+    _initialized: bool = False
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, plugins_dir: str = "plugins"):
         """
@@ -34,9 +41,25 @@ class PluginManager:
         Args:
             plugins_dir: プラグインディレクトリのパス
         """
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+
         self.plugins_dir = Path(plugins_dir)
         self.loaded_plugins: Dict[str, NotificationPlugin] = {}
         self.enabled_plugins: Dict[str, NotificationPlugin] = {}
+        self._initialized = True
+
+    def get_plugin(self, plugin_name: str) -> Optional[NotificationPlugin]:
+        """
+        ロード済みのプラグインを取得
+
+        Args:
+            plugin_name: プラグイン名
+
+        Returns:
+            NotificationPlugin: 見つかったプラグイン、なければ None
+        """
+        return self.loaded_plugins.get(plugin_name)
 
     def discover_plugins(self) -> List[Tuple[str, str]]:
         """
@@ -228,12 +251,15 @@ class PluginManager:
         """
         return self.loaded_plugins.copy()
 
-    def post_video_with_all_enabled(self, video: dict) -> Dict[str, bool]:
+    def post_video_with_all_enabled(
+        self, video: dict, dry_run: bool = False
+    ) -> Dict[str, bool]:
         """
         すべての有効なプラグインで動画をポスト
 
         Args:
             video: 動画情報
+            dry_run: ドライランモード（True の場合は実際には投稿しない）
 
         Returns:
             Dict[str, bool]: {プラグイン名: 成功/失敗}
@@ -242,12 +268,23 @@ class PluginManager:
 
         for plugin_name, plugin in self.enabled_plugins.items():
             try:
+                # ★ dry_run フラグをプラグインに設定
+                if hasattr(plugin, "set_dry_run"):
+                    plugin.set_dry_run(dry_run)
+
                 success = plugin.post_video(video)
                 results[plugin_name] = success
+
+                # ログ出力：成功のみ記録（False はスキップ・既存と認識）
+                video_id = video.get("video_id") or video.get("id", "unknown")
                 if success:
-                    post_logger.info(f"{plugin_name}: ✅ 成功")
+                    post_logger.info(f"{plugin_name}: ✅ 成功 (video_id={video_id})")
                 else:
-                    post_error_logger.warning(f"{plugin_name}: ❌ 失敗")
+                    # False の場合は単なる「未処理」（スキップ・既存）として認識
+                    # post_error.log には記録しない
+                    post_logger.debug(
+                        f"{plugin_name}: ℹ️ スキップまたは既存 (video_id={video_id})"
+                    )
             except Exception as e:
                 post_error_logger.error(
                     f"❌ プラグイン {plugin_name} でのポスト失敗: {e}", exc_info=True
