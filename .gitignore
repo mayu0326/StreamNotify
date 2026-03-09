@@ -1,0 +1,131 @@
+# テスト用スクリプト（一時的な検証・デバッグ用）
+test_scripts/
+local-ci.md
+v3/test/*
+v4-websub-server/test_scripts/*
+v4-websub-server/test_scripts/archive/*
+
+# 仮想環境ディレクトリ
+**/venv/*
+**/.venv/*
+
+# IDE/エディタ設定ファイル
+**/.vscode/*
+Streamnotify.code-workspace
+.editorconfig
+
+# 環境設定ファイル・ログファイル・キャッシュ・生成物
+settings.env
+*.env
+srv.md
+npm-debug.log
+*.log
+*.backup
+
+# APIキー
+credentials.csv
+google-service-account.json
+aws_access_key_id
+aws_secret_access_key
+id_rsa
+*.pem
+*.ppk
+
+# セキュリティチェック関連
+.safety-project.ini
+.bandit
+.flake8
+act_output.log
+filtered_errors.log
+mypy_errors.txt
+flake8_output.txt
+critical_errors_full.txt
+critical_errors.txt
+flake8_report.txt
+readable_errors.txt
+**/verify_result.txt
+**/verify_log_fix.py
+
+# ログファイル
+**/v1/logs/*
+**/v2/logs/*
+**/v3/logs/*
+**/v4/logs/*
+v4-websub-server/logs/*
+
+# キャッシュファイル
+__pycache__
+.mypy_cache
+.pytest_cache
+
+# データベースファイル・データフォルダ
+**/v1/data/*
+**/v2/data/*
+**/v3/data/*
+**/v4/data/*
+v4-websub-server/data/*
+db.sqlite3
+dump.sql
+
+# 依存ファイル
+**/node_modules/**
+.DS_Store
+Thumbs.db
+
+# 画像
+v2/images/**
+v3/images/**
+v4/images/**
+
+# テンプレート
+v2/templates/**
+v3/templates/**
+v4/templates/**
+
+# git 管理外の一時ファイル
+**/.github/**
+
+# 生成されたバックアップファイル
+*.py.bak
+*.zip
+*.rar
+
+# エージェント用ルール
+.agent/**
+
+# リリースノート
+Release/**
+v2/docs/old_notes
+release-notes.md
+
+# リリースクリプト(ローカル用)
+scripts/release.ps1
+scripts/release.sh
+release-event.json
+
+# ドキュメント
+v1/docs/**
+v2/docs/**
+v3/docs/**
+v4/docs/**
+v4-websub-server/docs/*
+
+# old_repo
+**/old_repo/**
+
+# repo_wiki
+**/repo_wiki/**
+meta_latest.json
+vectors_latest.npz
+
+# v4-websub-server (Local monorepo for Center Server)
+v4-websub-server/
+
+# llm_rag
+**/llm_rag/*
+.cocoindex_code/
+
+# wiki
+wiki_template/
+wiki_config.json
+fill_wiki_template.py
