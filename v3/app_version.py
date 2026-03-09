@@ -13,7 +13,7 @@ __version__ = "3.1.0"
 __release_date__ = "2025-12-18"
 __status__ = "development"  # development / alpha / beta / stable
 __author__ = "mayuneco(mayunya)"
-__license__ = "GPLv3"
+__license__ = "GPLv2"
 
 # CI/CD で自動設定される（Git タグ作成時）
 __git_commit__ = ""
