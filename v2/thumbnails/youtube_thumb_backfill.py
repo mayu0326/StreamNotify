@@ -26,8 +26,8 @@ from pathlib import Path
 # v2ルートをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database import get_database
-from image_manager import get_image_manager, get_youtube_thumbnail_url
+from database import get_database  # noqa: E402
+from image_manager import get_image_manager, get_youtube_thumbnail_url  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

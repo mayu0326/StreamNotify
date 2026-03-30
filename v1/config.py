@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-StreamNotify on Bluesky- v1 設定管理
+StreamNotify- v1 設定管理
 
 settingssettingssettingssettingssettingssettings.env から設定を読み込み、バリデーションを行う。
 """
@@ -40,26 +40,35 @@ class Config:
         # YouTube チャンネル ID
         self.youtube_channel_id = os.getenv("YOUTUBE_CHANNEL_ID", "").strip()
         if not self.youtube_channel_id:
-            logger.error("YOUTUBE_CHANNEL_ID が未設定です。settings.env を確認してください。")
+            logger.error(
+                "YOUTUBE_CHANNEL_ID が未設定です。settings.env を確認してください。"
+            )
             raise ValueError("YOUTUBE_CHANNEL_ID is required")
 
         # Bluesky ユーザー名
         self.bluesky_username = os.getenv("BLUESKY_USERNAME", "").strip()
         if not self.bluesky_username:
-            logger.error("BLUESKY_USERNAME が未設定です。settings.env を確認してください。")
+            logger.error(
+                "BLUESKY_USERNAME が未設定です。settings.env を確認してください。"
+            )
             raise ValueError("BLUESKY_USERNAME is required")
 
         # Bluesky アプリパスワード
         self.bluesky_password = os.getenv("BLUESKY_PASSWORD", "").strip()
         if not self.bluesky_password:
-            logger.error("BLUESKY_PASSWORD が未設定です。settings.env を確認してください。")
+            logger.error(
+                "BLUESKY_PASSWORD が未設定です。settings.env を確認してください。"
+            )
             raise ValueError("BLUESKY_PASSWORD is required")
 
         # ポーリング間隔
         try:
             self.poll_interval_minutes = int(os.getenv("POLL_INTERVAL_MINUTES", 10))
             if self.poll_interval_minutes < 5 or self.poll_interval_minutes > 30:
-                logger.warning(f"ポーリング間隔が範囲外です (5〜30): {self.poll_interval_minutes}。10分に設定します。")
+                logger.warning(
+                    f"ポーリング間隔が範囲外です (5〜30): "
+                    f"{self.poll_interval_minutes}。10分に設定します。"
+                )
                 self.poll_interval_minutes = 10
         except ValueError:
             logger.warning("POLL_INTERVAL_MINUTES が無効です。10分に設定します。")
@@ -76,11 +85,16 @@ class Config:
         self.is_collect_mode = (not db_exists) or (app_mode == "collect")
 
         if self.is_collect_mode:
-            logger.warning("⚠️  蓄積モード: RSS を取得して DB に保存するだけです。Bluesky への投稿は行いません。")
+            logger.warning(
+                "⚠️  蓄積モード: RSS を取得して DB に保存するだけです。"
+                "Bluesky への投稿は行いません。"
+            )
         else:
             if not self.bluesky_post_enabled:
                 logger.warning("⚠️  BLUESKY_POST_ENABLED=false（ドライラン モード）")
-                logger.warning("   投稿対象は DB で選択して、GUI または CLI から手動で行ってください。")
+                logger.warning(
+                    "   投稿対象は DB で選択して、GUI または CLI から手動で行ってください。"
+                )
             else:
                 logger.info("✅ BLUESKY_POST_ENABLED=true（投稿 モード）")
                 logger.info("   投稿対象は DB で選択して、5分間隔で順次投稿します。")
@@ -88,7 +102,9 @@ class Config:
         # タイムゾーン（オプション）
         self.timezone = os.getenv("TIMEZONE", "system")
 
-        logger.info(f"設定を読み込みました。ポーリング間隔: {self.poll_interval_minutes} 分")
+        logger.info(
+            f"設定を読み込みました。ポーリング間隔: {self.poll_interval_minutes} 分"
+        )
 
 
 def get_config(env_path="settings.env") -> Config:

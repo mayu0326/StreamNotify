@@ -10,15 +10,15 @@ Niconico の niconico_ogp_utils.py に相当する内部モジュール
 """
 
 import logging
-import sys
 import os
+import sys
 
 # 親ディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from youtube_rss import YouTubeRSS
-from image_manager import get_image_manager
-from database import get_database
+from database import get_database  # noqa: E402
+from image_manager import get_image_manager  # noqa: E402
+from youtube_rss import YouTubeRSS  # noqa: E402
 
 logger = logging.getLogger("AppLogger")
 
@@ -49,8 +49,8 @@ class YouTubeThumbManager:
             youtube_logger = logging.getLogger("YouTubeLogger")
 
             # image_manager と database のロガーを一時的に YouTubeLogger に変更
-            import image_manager as im_module
             import database as db_module
+            import image_manager as im_module
 
             original_im_logger = im_module.logger
             original_db_logger = db_module.logger

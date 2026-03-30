@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 データベース管理
+StreamNotify - v2 データベース管理
 
 SQLite データベースの操作を行う。
 マルチプロセスアクセス対策：タイムアウト + リトライ
 """
 
-import sqlite3
 import logging
 import os
+import sqlite3
 import time
-from typing import List, Any, Optional
 from datetime import datetime
 from pathlib import Path
+from typing import Any, List
 
 logger = logging.getLogger("AppLogger")
 post_logger = logging.getLogger("PostLogger")

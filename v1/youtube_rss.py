@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-StreamNotify on Bluesky- v1 YouTube RSS 管理
+StreamNotify- v1 YouTube RSS 管理
 
 YouTube チャンネルの RSS を取得・パースして DB に反映する。
 """
@@ -9,8 +9,7 @@ YouTube チャンネルの RSS を取得・パースして DB に反映する。
 import logging
 from typing import Dict, List
 
-import feedparser
-import requests
+import feedparser  # type: ignore
 
 logger = logging.getLogger("AppLogger")
 
@@ -18,7 +17,9 @@ __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
 __license__ = "GPLv2"
 
-YOUTUBE_RSS_URL_TEMPLATE = "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+YOUTUBE_RSS_URL_TEMPLATE = (
+    "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+)
 
 
 class YouTubeRSS:

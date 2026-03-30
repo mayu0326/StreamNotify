@@ -22,14 +22,15 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+
 import requests
 from bs4 import BeautifulSoup
 
 # v2ルートをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database import get_database
-from image_manager import get_image_manager
+from database import get_database  # noqa: E402
+from image_manager import get_image_manager  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

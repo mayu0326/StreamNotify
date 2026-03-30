@@ -1,0 +1,10 @@
+Twitch 放送開始 🎉
+
+配信者: {{ broadcaster_user_name }} 
+タイトル: {{ title }}
+カテゴリ: {{ category_name }}
+開始日時: {{ started_at | datetimeformat}}
+視聴URL: {{ stream_url }}
+
+ぜひ遊びに来てください！
+#Twitch配信通知📺

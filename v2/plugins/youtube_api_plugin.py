@@ -14,17 +14,17 @@ YouTube Data API プラグイン（クォータ対応版）
 - videos.list（詳細取得）: 1ユニット（最大50件/リクエスト）
 """
 
-import os
-import logging
-import time
 import json
-from typing import Dict, Any, Optional, Tuple, List
+import logging
+import os
+import time
 from pathlib import Path
-import requests
+from typing import Any, Dict, List, Optional, Tuple
 
-from plugin_interface import NotificationPlugin
+import requests
 from database import Database
 from image_manager import get_youtube_thumbnail_url
+from plugin_interface import NotificationPlugin
 
 logger = logging.getLogger("AppLogger")
 

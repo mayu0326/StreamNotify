@@ -1,6 +1,9 @@
-﻿# Streamnotify on Bluesky (v1)
+﻿# StreamNotify (v1)
 
 特定の YouTube チャンネルの新着動画を検知し、指定した Bluesky アカウントに自動投稿する常駐ボットです。
+
+> [!TIP]
+> 初めてご利用の方は **[セットアップガイド](docs/SETUP_GUIDE_v1.md)** および **[ユーザーガイド](docs/USER_GUIDE_v1.md)** をご覧ください。
 
 ## 機能概要
 

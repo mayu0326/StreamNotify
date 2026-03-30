@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-Stream notify on Bluesky - v2 画像再取得ツール
+StreamNotify - v2 画像再取得ツール
 
 データベース内の画像が設定されていない動画について、
 thumbnail_urlから画像を再ダウンロードして保存します。
@@ -17,9 +17,8 @@ thumbnail_urlから画像を再ダウンロードして保存します。
     --verbose   : 詳細ログを表示
 """
 
-import sys
 import logging
-import os
+import sys
 from pathlib import Path
 
 # v2ルートをパスに追加
@@ -30,6 +29,7 @@ Path("logs").mkdir(exist_ok=True)
 
 from database import get_database
 from image_manager import get_image_manager, get_youtube_thumbnail_url
+
 from .niconico_ogp_utils import get_niconico_ogp_url
 
 # ThumbnailsLogger（logging_plugin.pyで設定管理）
@@ -54,9 +54,9 @@ def redownload_missing_images(dry_run: bool = False):
         return
 
     logger.info(f"📊 画像なし動画: {len(videos)}件")
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"画像未設定の動画: {len(videos)}件")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     success_count = 0
     skip_count = 0
@@ -116,12 +116,12 @@ def redownload_missing_images(dry_run: bool = False):
             error_count += 1
 
     # サマリー表示
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("処理結果:")
     print(f"  成功: {success_count}件")
     print(f"  スキップ: {skip_count}件")
     print(f"  失敗: {error_count}件")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     if dry_run:
         print("※ DRY RUN モードで実行されました。実際の変更は行われていません。")

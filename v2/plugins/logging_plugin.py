@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-Stream notify on Bluesky - v2 ロギング拡張プラグイン
+StreamNotify - v2 ロギング拡張プラグイン
 
 旧版の高機能なロギング設定を提供するプラグイン。
 - 複数ロガー（AppLogger, YouTubeLogger, NiconicoLogger）
@@ -8,12 +8,13 @@ Stream notify on Bluesky - v2 ロギング拡張プラグイン
 - 環境変数ベースのログレベル制御
 """
 
+import logging
 import os
 import sys
-import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
 
 # 親ディレクトリのplugin_interfaceをインポート

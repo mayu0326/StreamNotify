@@ -1,0 +1,19 @@
+🛑 Twitch 配信終了
+
+{{ broadcaster_user_name | default('配信者名不明') }} さんは、
+先ほどTwitchでの放送を終了しました。
+チャンネル: {{ channel_url | default('チャンネルURL不明') }}
+終了時刻: {{ ended_at | datetimeformat }}
+
+{% if to_broadcaster_user_name %}
+「Raid先のご案内」
+---
+{{ from_broadcaster_user_name | default('配信者名不明') }} さんの放送は、
+現在{{ to_broadcaster_user_name | default('Raid先不明') }} さんの放送にRaidされています。
+
+Raid先: {{ to_broadcaster_user_name }} ({{ to_broadcaster_user_login }})
+Raid先URL: {{ to_stream_url }}）
+{% endif %}
+
+またの配信をお楽しみに！
+#Twitch #配信終了

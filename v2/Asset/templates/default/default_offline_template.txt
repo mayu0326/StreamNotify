@@ -1,0 +1,8 @@
+【放送終了】
+以下の放送は終了しました。
+※放送プラットフォームが特定できなかったため、
+最小限の内容で投稿しております。
+
+配信者: {{ broadcaster_user_name }} ({{ broadcaster_user_login }})
+チャンネルURL: {{ channel_url }}
+終了時刻: {{ ended_at | datetimeformat }}

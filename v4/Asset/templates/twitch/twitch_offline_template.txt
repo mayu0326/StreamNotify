@@ -1,0 +1,9 @@
+🛑 Twitch 配信終了
+
+{{ broadcaster_user_name | default('配信者名不明') }} さんは、
+先ほどTwitchでの放送を終了しました。
+チャンネル: {{ channel_url | default('チャンネルURL不明') }}
+終了時刻: {{ ended_at | datetimeformat }}
+
+またの配信をお楽しみに！
+#Twitch #配信終了
