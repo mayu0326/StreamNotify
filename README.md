@@ -114,9 +114,9 @@ python v3/main_v3.py
 
 ## ドキュメントとWiki
 詳細な設定方法はWikiを参照してください。
-- [インストール・セットアップ手順](https://github.com/mayu0326/StreamNotify/wiki/getting_started) (仮)
-- [GUIマニュアル](https://github.com/mayu0326/StreamNotify/wiki/gui_usermanual) (仮)
-- [FAQ・トラブルシューティング](https://github.com/mayu0326/StreamNotify/wiki/faq) (仮)
+- [インストール・セットアップ手順](https://github.com/mayu0326/StreamNotify/wiki/getting_started)
+- [GUIマニュアル](https://github.com/mayu0326/StreamNotify/wiki/gui_usermanual)
+- [FAQ・トラブルシューティング](https://github.com/mayu0326/StreamNotify/wiki/faq)
 
 ---
 
