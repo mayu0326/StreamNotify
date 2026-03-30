@@ -50,10 +50,12 @@ StreamNotify は、YouTube やニコニコ動画の新着情報を検知し、Bl
 ---
 
 ### 🛠️ 開発者・技術者向け
-- [開発者ガイド](dev/developer_guide): 開発環境の構築からコントリビューションの流れについて。
-- [アーキテクチャ概要](dev/architecture): アプリケーション全体の仕組みやクラス・モジュールの構成。
-- [プラグイン開発ガイド](dev/plugin_development): プラグインの作成方法とAPIの仕様について。
-- [技術仕様書](dev/technical_specs): コア機能やファイル・データベースなどの技術的な詳細仕様。
+（詳細ドキュメントは GitHub リポジトリの `wiki` ブランチ内 `wiki/dev/` にあります。GitHub Wiki 本体には載せていません。）
+
+- [開発者ガイド](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/dev/developer_guide.md): 開発環境の構築からコントリビューションの流れについて。
+- [アーキテクチャ概要](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/dev/architecture.md): アプリケーション全体の仕組みやクラス・モジュールの構成。
+- [プラグイン開発ガイド](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/dev/plugin_development.md): プラグインの作成方法とAPIの仕様について。
+- [技術仕様書](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/dev/technical_specs.md): コア機能やファイル・データベースなどの技術的な詳細仕様。
 
 ---
 

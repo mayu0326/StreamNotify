@@ -175,7 +175,7 @@ v4 では、初回にテンプレートやフォルダを準備しますが、**
 | フォルダと保存場所 | [v4 のフォルダ構成](v4_folder_structure) |
 | Twitch 配信の連携 | [Twitch 連携設定ガイド（v4）](twitch_setup) |
 | ログファイルの種類と見方 | [v4 のログファイル案内](v4_logs_guide) |
-| 仕組みの詳細（開発・上級者向け） | [v4 概要と使い方（技術）](technical/v4-overview-and-usage) |
+| 仕組みの詳細（開発・上級者向け） | [v4 概要と使い方（技術）](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/technical/v4-overview-and-usage.md) |
 
 ---
 *最終更新: 2026-03-29*

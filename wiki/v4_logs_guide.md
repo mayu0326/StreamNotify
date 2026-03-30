@@ -61,7 +61,7 @@ StreamNotify **v4** は、動作の記録を **`v4/logs/`** フォルダ内の *
 - [v4 クイックスタート](v4_getting_started)
 - [投稿テストとデバッグ](testing_debug)
 - [設定項目の解説](config_reference)
-- 開発者向けの詳細: [Logging-System（技術）](technical/Logging-System)
+- 開発者向けの詳細: [Logging-System（技術）](https://github.com/mayu0326/StreamNotify/blob/wiki/wiki/technical/Logging-System.md)
 
 ---
 *最終更新: 2026-03-29*
