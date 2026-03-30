@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - Bluesky コア機能（内部ライブラリ）
+StreamNotify - Bluesky コア機能（内部ライブラリ）
 
 【重要】このモジュールはプラグイン層からのみ利用されます。
 直接呼び出しは行わないでください。画像添付機能はプラグイン層で実装されます。
@@ -12,14 +12,13 @@ Rich Text Facet: https://docs.bsky.app/docs/advanced-guides/post-richtext
 画像埋め込み: https://docs.bsky.app/docs/advanced-guides/posts
 """
 
+import json
 import logging
 import re
-import json
-import requests
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Any, Union
-from plugin_interface import NotificationPlugin
+from typing import Any, Dict, List, Optional
+
+import requests
 
 logger = logging.getLogger("AppLogger")
 post_logger = logging.getLogger("PostLogger")
@@ -156,14 +155,6 @@ class BlueskyMinimalPoster:
         """最小限の動画投稿API（テキスト + オプション画像埋め込み）"""
         post_data: Dict[str, Any] = {}
         try:
-            # デバッグ: 受け取ったフィールドを確認
-            post_logger.debug(f"🔍 post_video_minimal に受け取ったフィールド:")
-            post_logger.debug(f"   source: {video.get('source')}")
-            post_logger.debug(f"   image_mode: {video.get('image_mode')}")
-            post_logger.debug(f"   image_filename: {video.get('image_filename')}")
-            post_logger.debug(f"   embed: {bool(video.get('embed'))}")
-            post_logger.debug(f"   text_override: {bool(video.get('text_override'))}")
-
             # text_override がある場合は優先（テンプレートレンダリング済み）
             text_override = video.get("text_override")
 
@@ -181,7 +172,7 @@ class BlueskyMinimalPoster:
             if text_override:
                 # プラグイン側でテンプレートから生成した本文を優先
                 post_text = text_override
-                post_logger.info(f"📝 テンプレート生成済みの本文を使用します")
+                post_logger.info("📝 テンプレート生成済みの本文を使用します")
             elif source == "niconico":
                 post_text = f"{title}\n\n📅 {published_at[:10]}\n\n{video_url}"
             else:
@@ -242,11 +233,9 @@ class BlueskyMinimalPoster:
             if embed:
                 post_record["embed"] = embed
 
-            post_data = {
-                "repo": self.did,
-                "collection": "app.bsky.feed.post",
-                "record": post_record,
-            }
+            # DID がある場合のみ追加
+            if self.did:
+                post_data["repo"] = self.did
             headers = {
                 "Authorization": f"Bearer {self.access_token}",
                 "Content-Type": "application/json",
@@ -283,7 +272,7 @@ class BlueskyMinimalPoster:
                 post_logger.error(
                     f"❌ Bluesky API エラー ({e.response.status_code}): {error_data}"
                 )
-            except:
+            except Exception:
                 logger.error(
                     f"❌ Bluesky API エラー: {e.response.status_code} - {e.response.text}"
                 )
@@ -298,7 +287,7 @@ class BlueskyMinimalPoster:
                         f"投稿リクエストボディ: {json.dumps(post_data, indent=2, default=str)}",
                         exc_info=False,
                     )
-                except:
+                except Exception:
                     pass
             return False
         except Exception as e:

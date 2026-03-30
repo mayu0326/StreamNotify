@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-StreamNotify on Bluesky v2 - バージョン情報
+StreamNotify v2 - バージョン情報
 
 セマンティックバージョニングを採用
 - major: 大規模な機能追加・API変更

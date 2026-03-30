@@ -8,8 +8,17 @@ StreamNotify は、YouTube やニコニコ動画の新着情報を検知し、Bl
 
 ### 🔰 初めての方へ
 - [StreamNotify 概要](overview): 何ができるのか、どう動くのかの説明
-- [セットアップガイド](getting_started ): インストールから初期設定まで
-- [ユーザーマニュアル](user_manual): 基本的な使い方の概要
+- [セットアップガイド](getting_started ): インストールから初期設定まで（**v3 向け**）
+- [ユーザーマニュアル](user_manual): 基本的な使い方の概要（**v3 向け**）
+
+### 🔰 StreamNotify v4 をお使いの方
+- [v4 概要](v4_overview): v4 でできること・v3 との違い（やさしい説明）
+- [v4 クイックスタート](v4_getting_started): インストールから初期設定・起動まで
+- [v4 ユーザーマニュアル](v4_user_manual): 日常の運用の流れ
+- [v4 GUI 操作マニュアル](v4_gui_usermanual): 画面のボタン・フィルタ・右クリック
+- [v4 のフォルダ構成](v4_folder_structure): 設定・ログ・データの保存場所
+- [v4 のログファイル案内](v4_logs_guide): `v4/logs/` の種類と、何がどのファイルに書かれるか
+- [Twitch 連携設定ガイド（v4）](twitch_setup): Twitch 配信の通知を v4 で受け取る手順
 
 ### 🔑 アカウント・認証コード
 - [YouTubeチャンネルID](youtube_id) : YouTubeチャンネルの`UC`から始まるチャンネルIDの調べ方
@@ -23,6 +32,7 @@ StreamNotify は、YouTube やニコニコ動画の新着情報を検知し、Bl
 - [投稿テストとデバッグ](testing_debug) : 失敗しないためのテスト手順
 
 ### 📺 プラグイン・高度な設定
+- [Twitch 連携設定ガイド（v4）](twitch_setup): Twitch 配信の検知と Bluesky 投稿（v4・センター経由）。
 - [ニコニコ動画 連携設定ガイド](niconico_setup): ニコニコ動画を監視対象に追加する方法。
 - [自動投稿（Autopost）機能の解説](autopost_guide): アプリに全自動で投稿を任せる詳しい設定。
 - [YouTube ライブ・プレミア公開の監視について](youtube_live_guide): 配信開始・終了を自動で検知してお知らせ。
@@ -56,4 +66,4 @@ StreamNotify は、YouTube やニコニコ動画の新着情報を検知し、Bl
 
 ---
 
-*最終更新: 2026-03-04*
+*最終更新: 2026-03-30*

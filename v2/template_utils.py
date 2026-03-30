@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 テンプレート処理ユーティリティ
+StreamNotify - v2 テンプレート処理ユーティリティ
 
 テンプレートの読み込み、検証、レンダリングに関する共通関数と定義を提供。
 
@@ -10,11 +10,12 @@ Vanilla 環境では、テンプレート仕様とファイル構成が整備さ
 プラグイン実装時にこれらの関数を即座に活用できます。
 """
 
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Any
-from jinja2 import Environment, TemplateNotFound, TemplateSyntaxError
+from typing import Any, Dict, List, Optional, Tuple
+
+from jinja2 import Environment, TemplateSyntaxError
 
 logger = logging.getLogger("AppLogger")
 

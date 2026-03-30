@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 設定管理
+StreamNotify - v2 設定管理
 
 .env から設定を読み込み、バリデーションを行う。
 """
 
-import os
 import logging
-from dotenv import load_dotenv
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 logger = logging.getLogger("AppLogger")
 

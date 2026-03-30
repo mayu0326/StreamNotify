@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 ユーティリティ
+StreamNotify - v2 ユーティリティ
 
 YouTube → Bluesky 通知ボット用の共通ユーティリティ関数を提供します。
 """
 
+import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
-import os
-import logging
+
 import pytz
 from tzlocal import get_localzone
 
 # サムネイル関連ユーティリティ（ニコニコOGP/バックフィル）
-from thumbnails.niconico_ogp_backfill import backfill_niconico, fetch_thumbnail_url
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"

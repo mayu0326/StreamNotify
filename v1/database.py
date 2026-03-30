@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-StreamNotify on Bluesky- v1 データベース管理
+StreamNotify- v1 データベース管理
 
 SQLite データベースの操作を行う。
 マルチプロセスアクセス対策：タイムアウト + リトライ
@@ -11,7 +11,6 @@ import logging
 import os
 import sqlite3
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -98,7 +97,7 @@ class Database:
             required_columns = {
                 "selected_for_post": "INTEGER DEFAULT 0",
                 "scheduled_at": "TEXT",
-                "thumbnail_url": "TEXT"
+                "thumbnail_url": "TEXT",
             }
 
             migration_needed = False
@@ -107,10 +106,14 @@ class Database:
                 if col_name not in columns:
                     logger.info(f"🔄 カラムを追加します: {col_name}")
                     try:
-                        cursor.execute(f"ALTER TABLE videos ADD COLUMN {col_name} {col_def}")
+                        cursor.execute(
+                            f"ALTER TABLE videos ADD COLUMN {col_name} {col_def}"
+                        )
                         migration_needed = True
                     except sqlite3.OperationalError as e:
-                        logger.warning(f"カラム追加スキップ（既に存在？）: {col_name} - {e}")
+                        logger.warning(
+                            f"カラム追加スキップ（既に存在？）: {col_name} - {e}"
+                        )
 
             if migration_needed:
                 conn.commit()
@@ -122,7 +125,15 @@ class Database:
             logger.error(f"スキーママイグレーションエラー: {e}")
             raise
 
-    def insert_video(self, video_id, title, video_url, published_at, channel_name="", thumbnail_url=""):
+    def insert_video(
+        self,
+        video_id,
+        title,
+        video_url,
+        published_at,
+        channel_name="",
+        thumbnail_url="",
+    ):
         """
         動画情報を挿入（リトライ付き）
         """
@@ -131,10 +142,20 @@ class Database:
                 conn = self._get_connection()
                 cursor = conn.cursor()
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO videos (video_id, title, video_url, published_at, channel_name, thumbnail_url)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, (video_id, title, video_url, published_at, channel_name, thumbnail_url))
+                """,
+                    (
+                        video_id,
+                        title,
+                        video_url,
+                        published_at,
+                        channel_name,
+                        thumbnail_url,
+                    ),
+                )
 
                 conn.commit()
                 conn.close()
@@ -149,7 +170,9 @@ class Database:
             except sqlite3.OperationalError as e:
                 conn.close()
                 if "locked" in str(e).lower() and attempt < DB_RETRY_MAX - 1:
-                    logger.debug(f"DB ロック中。{attempt + 1}/{DB_RETRY_MAX} リトライします...")
+                    logger.debug(
+                        f"DB ロック中。{attempt + 1}/{DB_RETRY_MAX} リトライします..."
+                    )
                     time.sleep(0.5)
                     continue
                 else:
@@ -233,9 +256,12 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos SET posted_to_bluesky = 1 WHERE video_id = ?
-            """, (video_id,))
+            """,
+                (video_id,),
+            )
 
             conn.commit()
             conn.close()
@@ -246,21 +272,28 @@ class Database:
             logger.error(f"投稿済みフラグの更新に失敗しました: {e}")
             return False
 
-    def update_selection(self, video_id, selected: bool, scheduled_at: Optional[str] = None):
+    def update_selection(
+        self, video_id, selected: bool, scheduled_at: Optional[str] = None
+    ):
         """動画の投稿選択状態と予約日時を更新"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos 
                 SET selected_for_post = ?, scheduled_at = ?
                 WHERE video_id = ?
-            """, (1 if selected else 0, scheduled_at, video_id))
+            """,
+                (1 if selected else 0, scheduled_at, video_id),
+            )
 
             conn.commit()
             conn.close()
-            logger.info(f"動画の選択状態を更新しました: {video_id} (selected={selected}, scheduled={scheduled_at})")
+            logger.info(
+                f"動画の選択状態を更新しました: {video_id} (selected={selected}, scheduled={scheduled_at})"
+            )
             return True
 
         except Exception as e:

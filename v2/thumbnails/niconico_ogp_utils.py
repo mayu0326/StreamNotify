@@ -1,9 +1,10 @@
 ﻿# -*- coding: utf-8 -*-
 """OGP関連ユーティリティ（ニコニコ）"""
 
+import logging
+
 import requests
 from bs4 import BeautifulSoup
-import logging
 
 logger = logging.getLogger(__name__)
 

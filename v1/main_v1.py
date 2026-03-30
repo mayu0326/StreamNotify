@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-StreamNotify on Bluesky- v1 メインスクリプト（GUI 統合版）
+StreamNotify- v1 メインスクリプト（GUI 統合版）
 
 特定の YouTube チャンネルの新着動画を RSS で監視し、
 DB に蓄積。投稿対象は GUI で選択。
@@ -20,6 +20,7 @@ import tkinter as tk
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from tkinter import messagebox, ttk
+from typing import Any, Optional
 
 
 # ロギング設定
@@ -32,10 +33,7 @@ def setup_logging():
 
     # ファイルハンドラ
     fh = RotatingFileHandler(
-        "logs/app.log",
-        maxBytes=10*1024*1024,
-        backupCount=5,
-        encoding="utf-8"
+        "logs/app.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
     fh.setLevel(logging.DEBUG)
 
@@ -53,6 +51,7 @@ def setup_logging():
     logger.addHandler(ch)
 
     return logger
+
 
 logger = setup_logging()
 
@@ -83,23 +82,39 @@ class YouTubeNotifierGUI:
         toolbar = ttk.Frame(self.root)
         toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        ttk.Button(toolbar, text="🔄 再読込", command=self.refresh_data).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="🔄 再読込", command=self.refresh_data).pack(
+            side=tk.LEFT, padx=2
+        )
         ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=2)
-        ttk.Button(toolbar, text="☑️ すべて選択", command=self.select_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="☐ すべて解除", command=self.deselect_all).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="☑️ すべて選択", command=self.select_all).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="☐ すべて解除", command=self.deselect_all).pack(
+            side=tk.LEFT, padx=2
+        )
         ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=2)
-        ttk.Button(toolbar, text="💾 選択を保存", command=self.save_selection).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="💾 選択を保存", command=self.save_selection).pack(
+            side=tk.LEFT, padx=2
+        )
         ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=2)
-        ttk.Button(toolbar, text="🧪 ドライラン", command=self.dry_run_post).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="📤 投稿実行", command=self.execute_post).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="🧪 ドライラン", command=self.dry_run_post).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(toolbar, text="📤 投稿実行", command=self.execute_post).pack(
+            side=tk.LEFT, padx=2
+        )
         ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=2)
-        ttk.Button(toolbar, text="ℹ️ 統計", command=self.show_stats).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="ℹ️ 統計", command=self.show_stats).pack(
+            side=tk.LEFT, padx=2
+        )
 
         table_frame = ttk.Frame(self.root)
         table_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         columns = ("Select", "Video ID", "Published", "Title", "Posted", "Scheduled")
-        self.tree = ttk.Treeview(table_frame, columns=columns, height=20, show="headings")
+        self.tree = ttk.Treeview(
+            table_frame, columns=columns, height=20, show="headings"
+        )
 
         self.tree.column("Select", width=50, anchor=tk.CENTER)
         self.tree.column("Video ID", width=110)
@@ -115,8 +130,10 @@ class YouTubeNotifierGUI:
         self.tree.heading("Posted", text="投稿済み")
         self.tree.heading("Scheduled", text="予約日時")
 
-        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscroll=scrollbar.set)
+        scrollbar = ttk.Scrollbar(
+            table_frame, orient=tk.VERTICAL, command=self.tree.yview
+        )
+        self.tree.configure(yscrollcommand=scrollbar.set)
 
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -143,14 +160,20 @@ class YouTubeNotifierGUI:
             posted = "✓" if video["posted_to_bluesky"] else "–"
             scheduled = video["scheduled_at"] or "（未設定）"
 
-            self.tree.insert("", tk.END, values=(
-                checked,
-                video["video_id"],
-                video["published_at"][:10],
-                video["title"][:100],
-                posted,
-                scheduled[:16] if scheduled != "（未設定）" else scheduled
-            ), iid=video["video_id"], tags=("even" if len(self.tree.get_children()) % 2 == 0 else "odd",))
+            self.tree.insert(
+                "",
+                tk.END,
+                values=(
+                    checked,
+                    video["video_id"],
+                    video["published_at"][:10],
+                    video["title"][:100],
+                    posted,
+                    scheduled[:16] if scheduled != "（未設定）" else scheduled,
+                ),
+                iid=video["video_id"],
+                tags=("even" if len(self.tree.get_children()) % 2 == 0 else "odd",),
+            )
 
             if video["selected_for_post"]:
                 self.selected_rows.add(video["video_id"])
@@ -158,7 +181,9 @@ class YouTubeNotifierGUI:
         self.tree.tag_configure("even", background="#f0f0f0")
         self.tree.tag_configure("odd", background="white")
 
-        self.status_label.config(text=f"読み込み完了: {len(videos)} 件の動画（選択: {len(self.selected_rows)} 件）")
+        self.status_label.config(
+            text=f"読み込み完了: {len(videos)} 件の動画（選択: {len(self.selected_rows)} 件）"
+        )
 
     def on_tree_click(self, event):
         """Treeview の「選択」列をクリックしてチェック状態をトグル"""
@@ -197,7 +222,9 @@ class YouTubeNotifierGUI:
             values[0] = "☑️"
             self.tree.item(item_id, values=values)
 
-        self.status_label.config(text=f"すべて選択しました（{len(self.selected_rows)} 件）")
+        self.status_label.config(
+            text=f"すべて選択しました（{len(self.selected_rows)} 件）"
+        )
 
     def deselect_all(self):
         """すべての選択を解除"""
@@ -217,18 +244,24 @@ class YouTubeNotifierGUI:
             is_selected = video["video_id"] in self.selected_rows
             self.db.update_selection(video["video_id"], selected=is_selected)
 
-        messagebox.showinfo("成功", f"{len(self.selected_rows)} 件の選択状態を保存しました。")
+        messagebox.showinfo(
+            "成功", f"{len(self.selected_rows)} 件の選択状態を保存しました。"
+        )
         self.refresh_data()
 
-    def edit_scheduled_time(self, video_id):
+    def edit_scheduled_time(self, video_id: str):
         """予約日時をダイアログで編集"""
         edit_window = tk.Toplevel(self.root)
         edit_window.title(f"予約日時設定 - {video_id}")
         edit_window.geometry("350x200")
         edit_window.resizable(False, False)
 
-        ttk.Label(edit_window, text=f"動画: {video_id}", font=("Arial", 10, "bold")).pack(pady=5)
-        ttk.Label(edit_window, text="予約投稿日時を設定します", foreground="gray").pack(pady=5)
+        ttk.Label(
+            edit_window, text=f"動画: {video_id}", font=("Arial", 10, "bold")
+        ).pack(pady=5)
+        ttk.Label(edit_window, text="予約投稿日時を設定します", foreground="gray").pack(
+            pady=5
+        )
 
         ttk.Label(edit_window, text="日時 (YYYY-MM-DD HH:MM):").pack(pady=5)
 
@@ -236,7 +269,10 @@ class YouTubeNotifierGUI:
         entry.pack(pady=5, padx=10)
 
         from datetime import timedelta
-        default_time = (datetime.now() + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M")
+
+        default_time = (datetime.now() + timedelta(minutes=5)).strftime(
+            "%Y-%m-%d %H:%M"
+        )
         entry.insert(0, default_time)
         entry.selection_range(0, tk.END)
         entry.focus()
@@ -244,15 +280,24 @@ class YouTubeNotifierGUI:
         quick_frame = ttk.LabelFrame(edit_window, text="クイック設定", padding=10)
         quick_frame.pack(pady=10, padx=10, fill=tk.X)
 
-        def set_quick_time(minutes):
+        def set_quick_time(minutes: int):
             from datetime import timedelta
-            quick_time = (datetime.now() + timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M")
+
+            quick_time = (datetime.now() + timedelta(minutes=minutes)).strftime(
+                "%Y-%m-%d %H:%M"
+            )
             entry.delete(0, tk.END)
             entry.insert(0, quick_time)
 
-        ttk.Button(quick_frame, text="5分後", command=lambda: set_quick_time(5)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(quick_frame, text="15分後", command=lambda: set_quick_time(15)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(quick_frame, text="30分後", command=lambda: set_quick_time(30)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(quick_frame, text="5分後", command=lambda: set_quick_time(5)).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(quick_frame, text="15分後", command=lambda: set_quick_time(15)).pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Button(quick_frame, text="30分後", command=lambda: set_quick_time(30)).pack(
+            side=tk.LEFT, padx=2
+        )
 
         button_frame = ttk.Frame(edit_window)
         button_frame.pack(pady=10)
@@ -273,21 +318,31 @@ class YouTubeNotifierGUI:
             edit_window.destroy()
             self.refresh_data()
 
-        ttk.Button(button_frame, text="保存", command=save_time).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="キャンセル", command=edit_window.destroy).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="保存", command=save_time).pack(
+            side=tk.LEFT, padx=5
+        )
+        ttk.Button(button_frame, text="キャンセル", command=edit_window.destroy).pack(
+            side=tk.LEFT, padx=5
+        )
 
     def dry_run_post(self):
         """ドライラン：選択された動画をログ出力のみ（実際には投稿しない）"""
         # GUI の selected_rows から直接取得（DB ではなく）
         if not self.selected_rows:
-            messagebox.showwarning("警告", "投稿対象の動画がありません。\n\n☑️ をクリックして選択してください。")
+            messagebox.showwarning(
+                "警告",
+                "投稿対象の動画がありません。\n\n☑️ をクリックして選択してください。",
+            )
             return
 
         videos = self.db.get_all_videos()
         selected = [v for v in videos if v["video_id"] in self.selected_rows]
 
         if not selected:
-            messagebox.showwarning("警告", "投稿対象の動画がありません。\n\n選択して保存してから実行してください。")
+            messagebox.showwarning(
+                "警告",
+                "投稿対象の動画がありません。\n\n選択して保存してから実行してください。",
+            )
             return
 
         # ドライランメッセージ
@@ -303,7 +358,7 @@ class YouTubeNotifierGUI:
         if len(selected) > 5:
             msg += f"  ... ほか {len(selected) - 5} 件\n"
 
-        msg += f"""
+        msg += """
 メインログに [DRY RUN] と表示されます。
 実際には投稿されません。
         """
@@ -312,17 +367,26 @@ class YouTubeNotifierGUI:
             for video in selected:
                 logger.info(f"[DRY RUN - GUI] 投稿予定: {video['title']}")
 
-            messagebox.showinfo("完了", f"{len(selected)} 件のドライラン実行をログに出力しました。\nコンソールログを確認してください。")
+            messagebox.showinfo(
+                "完了",
+                f"{len(selected)} 件のドライラン実行をログに出力しました。\nコンソールログを確認してください。",
+            )
 
     def execute_post(self):
         """投稿実行：選択された動画を実際に Bluesky に投稿（投稿済みフラグをスルー）"""
         if not self.bluesky_plugin:
-            messagebox.showerror("エラー", "Bluesky プラグインが初期化されていません。\nBLUESKY_POST_ENABLED=true で再起動してください。")
+            messagebox.showerror(
+                "エラー",
+                "Bluesky プラグインが初期化されていません。\nBLUESKY_POST_ENABLED=true で再起動してください。",
+            )
             return
 
         # GUI の selected_rows から直接取得（DB ではなく）
         if not self.selected_rows:
-            messagebox.showwarning("警告", "投稿対象の動画がありません。\n\n☑️ をクリックして選択してください。")
+            messagebox.showwarning(
+                "警告",
+                "投稿対象の動画がありません。\n\n☑️ をクリックして選択してください。",
+            )
             return
 
         videos = self.db.get_all_videos()
@@ -330,7 +394,10 @@ class YouTubeNotifierGUI:
         selected = [v for v in videos if v["video_id"] in self.selected_rows]
 
         if not selected:
-            messagebox.showwarning("警告", "投稿対象の動画がありません。\n\n選択して保存してから実行してください。")
+            messagebox.showwarning(
+                "警告",
+                "投稿対象の動画がありません。\n\n選択して保存してから実行してください。",
+            )
             return
 
         # 確認ダイアログ
@@ -363,7 +430,9 @@ class YouTubeNotifierGUI:
                 logger.info(f"📤 投稿実行（GUI）: {video['title']}")
                 if self.bluesky_plugin.post_video(video):
                     self.db.mark_as_posted(video["video_id"])
-                    self.db.update_selection(video["video_id"], selected=False, scheduled_at=None)
+                    self.db.update_selection(
+                        video["video_id"], selected=False, scheduled_at=None
+                    )
                     success_count += 1
                     logger.info(f"✅ 投稿成功（GUI）: {video['title']}")
                 else:
@@ -421,14 +490,16 @@ class YouTubeNotifierGUI:
         messagebox.showinfo("統計情報", stats)
 
 
-def run_gui(db, bluesky_plugin, stop_event):
+def run_gui(db: Any, bluesky_plugin: Optional[Any], stop_event: threading.Event):
     """GUI をスレッドで実行"""
     root = tk.Tk()
-    gui = YouTubeNotifierGUI(root, db, bluesky_plugin)
+    _gui = YouTubeNotifierGUI(root, db, bluesky_plugin)
 
     def on_closing():
         stop_event.set()
         root.destroy()
+        logger.info("管理画面が閉じられたためアプリケーションを終了します...")
+        sys.exit(0)
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()
@@ -445,8 +516,11 @@ def main():
     try:
         logger.info("設定を読み込んでいます...")
         from config import get_config
+
         config = get_config("settings.env")
-        logger.info(f"設定を読み込みました。ポーリング間隔: {config.poll_interval_minutes} 分")
+        logger.info(
+            f"設定を読み込みました。ポーリング間隔: {config.poll_interval_minutes} 分"
+        )
 
     except Exception as e:
         logger.error(f"設定の読み込みに失敗しました: {e}")
@@ -455,6 +529,7 @@ def main():
     try:
         logger.info("データベースを初期化しています...")
         from database import get_database
+
         db = get_database()
 
         if db.is_first_run:
@@ -469,9 +544,10 @@ def main():
     try:
         logger.info("YouTube RSS を初期化しています...")
         from youtube_rss import get_youtube_rss
+
         yt_rss = get_youtube_rss(config.youtube_channel_id)
 
-        bluesky_plugin = None
+        bluesky_plugin: Optional[Any] = None
         if not config.is_collect_mode:
             logger.info("Bluesky を初期化しています...")
             from bluesky_plugin import get_bluesky_plugin
@@ -479,7 +555,7 @@ def main():
             bluesky_plugin = get_bluesky_plugin(
                 config.bluesky_username,
                 config.bluesky_password,
-                dry_run=not config.bluesky_post_enabled
+                dry_run=not config.bluesky_post_enabled,
             )
 
         logger.info("初期化完了しました")
@@ -498,13 +574,15 @@ def main():
 
     # GUI をスレッドで起動（bluesky_plugin を渡す）
     stop_event = threading.Event()
-    gui_thread = threading.Thread(target=run_gui, args=(db, bluesky_plugin, stop_event), daemon=True)
+    gui_thread = threading.Thread(
+        target=run_gui, args=(db, bluesky_plugin, stop_event), daemon=True
+    )
     gui_thread.start()
     logger.info("✅ GUI を起動しました。別ウィンドウを確認してください。")
 
     # メインループ
     polling_count = 0
-    last_post_time = None
+    last_post_time: Optional[datetime] = None
     POST_INTERVAL_MINUTES = 5
 
     try:
@@ -521,29 +599,51 @@ def main():
                 logger.info("蓄積モード のため、投稿処理をスキップします。")
             else:
                 now = datetime.now()
-                should_post = last_post_time is None or (now - last_post_time).total_seconds() >= POST_INTERVAL_MINUTES * 60
+                should_post = (
+                    last_post_time is None
+                    or (now - last_post_time).total_seconds()
+                    >= POST_INTERVAL_MINUTES * 60
+                )
 
                 if should_post:
                     selected_video = db.get_selected_videos()
 
                     if selected_video:
-                        logger.info(f"投稿対象を発見しました: {selected_video['title']}")
+                        logger.info(
+                            f"投稿対象を発見しました: {selected_video['title']}"
+                        )
 
+                        assert bluesky_plugin is not None
                         if bluesky_plugin.post_video(selected_video):
-                            db.mark_as_posted(selected_video['video_id'])
+                            db.mark_as_posted(selected_video["video_id"])
                             last_post_time = now
-                            logger.info(f"✅ 投稿完了。次の投稿は {POST_INTERVAL_MINUTES} 分後です。")
+                            logger.info(
+                                f"✅ 投稿完了。次の投稿は {POST_INTERVAL_MINUTES} 分後です。"
+                            )
                         else:
-                            logger.warning(f"❌ 投稿に失敗しました: {selected_video['title']}")
+                            logger.warning(
+                                f"❌ 投稿に失敗しました: {selected_video['title']}"
+                            )
                     else:
-                        logger.info("投稿対象の動画がありません。GUI で選択してください。")
+                        logger.info(
+                            "投稿対象の動画がありません。GUI で選択してください。"
+                        )
                 else:
+                    assert last_post_time is not None
                     elapsed = (now - last_post_time).total_seconds() / 60
                     remaining = POST_INTERVAL_MINUTES - elapsed
-                    logger.info(f"投稿間隔制限中。次の投稿まで約 {remaining:.1f} 分待機。")
+                    logger.info(
+                        f"投稿間隔制限中。次の投稿まで約 {remaining:.1f} 分待機。"
+                    )
 
-            logger.info(f"次のポーリングまで {config.poll_interval_minutes} 分待機中...")
-            time.sleep(config.poll_interval_minutes * 60)
+            logger.info(
+                f"次のポーリングまで {config.poll_interval_minutes} 分待機中..."
+            )
+            # 待機中も stop_event をチェック（1秒間隔）
+            for _ in range(config.poll_interval_minutes * 60):
+                if stop_event.is_set():
+                    raise KeyboardInterrupt()
+                time.sleep(1)
 
     except KeyboardInterrupt:
         logger.info("\n[INFO] ユーザーによる中断")
@@ -555,7 +655,7 @@ def main():
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
-    if sys.platform.startswith('win'):
+    if sys.platform.startswith("win"):
         signal.signal(signal.SIGBREAK, signal_handler)
 
     main()

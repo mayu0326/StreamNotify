@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 Bluesky プラグイン
+StreamNotify - v2 Bluesky プラグイン
 
 Bluesky へのポスト機能を提供。
 HTTP API で直接 Rich Text をポスト。
@@ -9,17 +9,13 @@ Rich Text Facet: https://docs.bsky.app/docs/advanced-guides/post-richtext
 画像埋め込み: https://docs.bsky.app/docs/advanced-guides/posts
 """
 
-import json
 import logging
 import os
 import re
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, Optional
 
 import requests
-from plugin_interface import NotificationPlugin
-from image_manager import get_image_manager
 
 logger = logging.getLogger("AppLogger")
 post_logger = logging.getLogger("PostLogger")
@@ -138,7 +134,7 @@ class BlueskyMinimalPoster:
         """
         try:
             # デバッグ: 受け取ったフィールドを確認
-            post_logger.debug(f"🔍 post_video_minimal に受け取ったフィールド:")
+            post_logger.debug("🔍 post_video_minimal に受け取ったフィールド:")
             post_logger.debug(f"   source: {video.get('source')}")
             post_logger.debug(f"   image_mode: {video.get('image_mode')}")
             post_logger.debug(f"   image_filename: {video.get('image_filename')}")

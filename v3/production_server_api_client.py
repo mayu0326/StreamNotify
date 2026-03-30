@@ -46,6 +46,13 @@ class ProductionServerAPIClient:
         self.timeout = timeout
         self._verify_connection()
 
+    def _websub_auth_headers(self) -> Optional[Dict[str, str]]:
+        """GET /videos 等でセンターサーバーが要求するクライアント API キー。"""
+        client_api_key = os.getenv("WEBSUB_CLIENT_API_KEY")
+        if not client_api_key:
+            return None
+        return {"X-Client-API-Key": client_api_key}
+
     def _verify_connection(self):
         """本番サーバーへの接続を検証"""
         try:
@@ -112,13 +119,23 @@ class ProductionServerAPIClient:
             ビデオ情報の辞書リスト
         """
         try:
+            headers = self._websub_auth_headers()
+            if not headers:
+                logger.error(
+                    "WebSub /videos skipped: WEBSUB_CLIENT_API_KEY is not set "
+                    f"(channel_id={channel_id})"
+                )
+                return []
+
             url = f"{self.base_url}/videos"
             params: Dict[str, Any] = {"channel_id": channel_id, "limit": limit}
 
             logger.debug(
                 f"📥 Websubサーバー HTTP API リクエスト: {url} params={params}"
             )
-            response = requests.get(url, params=params, timeout=self.timeout)
+            response = requests.get(
+                url, params=params, headers=headers, timeout=self.timeout
+            )
             response.raise_for_status()
 
             data = response.json()
@@ -161,10 +178,20 @@ class ProductionServerAPIClient:
                 - items: ビデオリスト（最大 limit 件）
         """
         try:
+            headers = self._websub_auth_headers()
+            if not headers:
+                logger.error(
+                    "WebSub /videos (stats) skipped: WEBSUB_CLIENT_API_KEY is not set "
+                    f"(channel_id={channel_id})"
+                )
+                return {}
+
             url = f"{self.base_url}/videos"
             params: Dict[str, Any] = {"channel_id": channel_id, "limit": 1}  # 統計のみなので 1 件取得
 
-            response = requests.get(url, params=params, timeout=self.timeout)
+            response = requests.get(
+                url, params=params, headers=headers, timeout=self.timeout
+            )
             response.raise_for_status()
 
             data = response.json()

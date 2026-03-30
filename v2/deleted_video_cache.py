@@ -14,7 +14,6 @@ Stream notify on Bluesky - 削除済み動画除外リスト管理
 }
 """
 
-import os
 import json
 import logging
 from pathlib import Path
