@@ -1,16 +1,16 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 YouTube RSS 管理
+StreamNotify - v2 YouTube RSS 管理
 
 YouTube チャンネルの RSS を取得・パース・DB に保存する。
 （画像処理は thumbnails/youtube_thumb_utils.py の YouTubeThumbPlugin で管理）
 """
 
-import feedparser
 import logging
-import requests
-from typing import List, Dict
+from typing import Dict, List
+
+import feedparser
 from image_manager import get_youtube_thumbnail_url
 
 logger = logging.getLogger("AppLogger")
@@ -149,7 +149,7 @@ class YouTubeRSS:
             elif blacklist_skip_count > 0:
                 youtube_logger.info(summary)
             else:
-                youtube_logger.info(f"ℹ️ 新着動画はありません")
+                youtube_logger.info("ℹ️ 新着動画はありません")
 
         finally:
             # ロガーを元に戻す

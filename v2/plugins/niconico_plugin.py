@@ -9,27 +9,27 @@
 - ユーザー名自動取得（RSS <dc:creator> > 静画API > ユーザーページ > 環境変数 > ユーザーID）
 """
 
-import os
 import logging
-import time
+import os
 import re
-from typing import Dict, Any, Optional
-from threading import Thread, Event
+import time
 from pathlib import Path
+from threading import Event, Thread
+from typing import Any, Dict, Optional
+
 import feedparser  # type: ignore
-from socket import timeout as socket_timeout
 import requests
 
 try:
     import defusedxml.ElementTree as ET  # type: ignore
 except ImportError:
     import xml.etree.ElementTree as ET
-from bs4 import BeautifulSoup  # type: ignore
-from image_manager import get_image_manager
-from thumbnails import get_niconico_ogp_url
 
-from plugin_interface import NotificationPlugin
+from bs4 import BeautifulSoup  # type: ignore
 from database import Database
+from image_manager import get_image_manager
+from plugin_interface import NotificationPlugin
+from thumbnails import get_niconico_ogp_url
 
 logger = logging.getLogger("NiconicoLogger")
 
@@ -663,4 +663,3 @@ class NiconicoPlugin(NotificationPlugin):
     def on_interval(self):
         """定期実行（プラグインマネージャから呼び出される場合用）"""
         # 監視スレッドで処理しているため、ここでは何もしない
-        pass

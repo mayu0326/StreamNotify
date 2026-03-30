@@ -1,18 +1,18 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 画像管理モジュール
+StreamNotify - v2 画像管理モジュール
 
 サムネイル画像の取得・管理機能を提供。
 GUI、プラグイン、その他のモジュールから共通利用可能。
 """
 
-import os
-import logging
-import requests
-from pathlib import Path
-from typing import Optional, Tuple, List, Any
 import io
+import logging
+from pathlib import Path
+from typing import Any, List, Optional, Tuple
+
+import requests
 
 # Pillowはオプション（画像情報取得機能で使用）
 try:
@@ -420,12 +420,19 @@ class ImageManager:
                 transposed_img = ImageOps.exif_transpose(img)
 
                 # リサイズが必要か確認
-                if transposed_img.width <= max_width and transposed_img.height <= max_height:
-                    logger.info(f"✅ リサイズ不要: {transposed_img.width}x{transposed_img.height}")
+                if (
+                    transposed_img.width <= max_width
+                    and transposed_img.height <= max_height
+                ):
+                    logger.info(
+                        f"✅ リサイズ不要: {transposed_img.width}x{transposed_img.height}"
+                    )
                     return filename
 
                 # アスペクト比を維持してリサイズ
-                transposed_img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+                transposed_img.thumbnail(
+                    (max_width, max_height), Image.Resampling.LANCZOS
+                )
 
                 # Mypy対策: 別の変数に代入して ImageFile との不整合を回避
                 resized_img = transposed_img
@@ -482,9 +489,7 @@ class ImageManager:
                     rgb_img = Image.new("RGB", img.size, (255, 255, 255))
                     if img.mode == "P":
                         p_img = img.convert("RGBA")
-                        rgb_img.paste(
-                            p_img, mask=p_img.split()[-1]
-                        )
+                        rgb_img.paste(p_img, mask=p_img.split()[-1])
                     else:
                         rgb_img.paste(
                             img, mask=img.split()[-1] if img.mode == "RGBA" else None

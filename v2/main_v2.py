@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 メインスクリプト
+StreamNotify - v2 メインスクリプト
 
 特定の YouTube チャンネルの新着動画を RSS で監視し、
 DB に収集。投稿対象は GUI で選択。
@@ -10,29 +10,29 @@ DB に収集。投稿対象は GUI で選択。
 GUI はマルチスレッドで動作（メインループは継続）
 """
 
-import sys
-import os
-import time
-import signal
 import logging
+import os
+import signal
+import sys
 import threading
+import time
 import tkinter as tk
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # バージョン情報
-from app_version import get_version_info, get_full_version_info
-
-# プラグインマネージャ関連
-from plugin_manager import PluginManager
+from app_version import get_version_info
 
 # アセットマネージャ
 from asset_manager import get_asset_manager
 
+# GUI クラスをインポート
+from gui_v2 import StreamNotifyGUI
+
 # ロギング設定
 from logging_config import setup_logging
 
-# GUI クラスをインポート
-from gui_v2 import StreamNotifyGUI
+# プラグインマネージャ関連
+from plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ __license__ = "GPLv2"
 def run_gui(db, plugin_manager, stop_event, bluesky_core=None):
     """GUI をスレッドで実行 (プラグイン対応)"""
     root = tk.Tk()
-    gui = StreamNotifyGUI(root, db, plugin_manager, bluesky_core=bluesky_core)
+    _gui = StreamNotifyGUI(root, db, plugin_manager, bluesky_core=bluesky_core)
 
     def on_closing():
         stop_event.set()
@@ -66,14 +66,14 @@ def main():
     """メインエントリポイント (v2: プラグインアーキテクチャ対応)"""
 
     # バージョン情報をコンソールに出力
-    print(f"StreamNotify on Bluesky {get_version_info()}")
+    print(f"StreamNotify {get_version_info()}")
 
     try:
         from config import get_config
 
         config = get_config("settings.env")
         setup_logging(debug_mode=config.debug_mode)
-        logger.info(f"StreamNotify on Bluesky {get_version_info()}")
+        logger.info(f"StreamNotify {get_version_info()}")
         logger.info(f"動作モードは: {config.operation_mode} に設定されています。")
     except Exception as e:
         print(f"設定の読み込みに失敗しました: {e}")
@@ -112,7 +112,7 @@ def main():
         logger.info("[YouTube] YouTubeRSS の取得を準備しています...")
         from youtube_rss import get_youtube_rss
 
-        yt_rss = get_youtube_rss(config.youtube_channel_id)
+        _yt_rss = get_youtube_rss(config.youtube_channel_id)
         logger.info("[YouTube] RSS の取得準備を完了しました")
     except Exception as e:
         logger.error(f"[YouTube] YouTubeRSS の取得に失敗しました: {e}")
@@ -205,7 +205,7 @@ def main():
 
     # Bluesky 拡張機能プラグイン（画像添付・テンプレート）をロード
     # プラグインがない場合でも、コア機能（テキスト投稿）は引き続き利用可能
-    bluesky_plugin_available = False
+    _bluesky_plugin_available = False
     try:
         from plugins.bluesky_plugin import BlueskyImagePlugin
 

@@ -2,8 +2,7 @@
 test_scripts/
 local-ci.md
 v3/test/*
-v4-websub-server/test_scripts/*
-v4-websub-server/test_scripts/archive/*
+**/scripts/**
 
 # 仮想環境ディレクトリ
 **/venv/*
@@ -17,8 +16,8 @@ Streamnotify.code-workspace
 # 環境設定ファイル・ログファイル・キャッシュ・生成物
 settings.env
 *.env
-srv.md
 npm-debug.log
+pyproject.toml
 *.log
 *.backup
 
@@ -33,8 +32,8 @@ id_rsa
 
 # セキュリティチェック関連
 .safety-project.ini
-.bandit
 .flake8
+.bandit
 act_output.log
 filtered_errors.log
 mypy_errors.txt
@@ -51,7 +50,6 @@ readable_errors.txt
 **/v2/logs/*
 **/v3/logs/*
 **/v4/logs/*
-v4-websub-server/logs/*
 
 # キャッシュファイル
 __pycache__
@@ -63,7 +61,6 @@ __pycache__
 **/v2/data/*
 **/v3/data/*
 **/v4/data/*
-v4-websub-server/data/*
 db.sqlite3
 dump.sql
 
@@ -76,6 +73,7 @@ Thumbs.db
 v2/images/**
 v3/images/**
 v4/images/**
+images/**
 
 # テンプレート
 v2/templates/**
@@ -92,40 +90,16 @@ v4/templates/**
 
 # エージェント用ルール
 .agent/**
+.cursor/**
 
 # リリースノート
-Release/**
 v2/docs/old_notes
-release-notes.md
-
-# リリースクリプト(ローカル用)
-scripts/release.ps1
-scripts/release.sh
-release-event.json
 
 # ドキュメント
 v1/docs/**
 v2/docs/**
 v3/docs/**
 v4/docs/**
-v4-websub-server/docs/*
 
-# old_repo
-**/old_repo/**
-
-# repo_wiki
-**/repo_wiki/**
-meta_latest.json
-vectors_latest.npz
-
-# v4-websub-server (Local monorepo for Center Server)
-v4-websub-server/
-
-# llm_rag
-**/llm_rag/*
-.cocoindex_code/
-
-# wiki
-wiki_template/
-wiki_config.json
-fill_wiki_template.py
+# バックアップ
+**/Backups/**

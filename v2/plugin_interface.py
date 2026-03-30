@@ -1,13 +1,13 @@
 ﻿# -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - プラグインインターフェース
+StreamNotify - v2プラグインインターフェース
 
 プラグインが実装すべきインターフェース（抽象基底クラス）を定義します。
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
 __author__ = "mayuneco(mayunya)"
 __copyright__ = "Copyright (C) 2025 mayuneco(mayunya)"
@@ -30,7 +30,6 @@ class NotificationPlugin(ABC):
             *args: 可変長の位置引数
             **kwargs: 可変長のキーワード引数
         """
-        pass
 
     @abstractmethod
     def is_available(self) -> bool:
@@ -40,7 +39,6 @@ class NotificationPlugin(ABC):
         Returns:
             bool: 利用可能な場合 True、そうでない場合 False
         """
-        pass
 
     @abstractmethod
     def post_video(self, video: Dict[str, Any]) -> bool:
@@ -59,7 +57,6 @@ class NotificationPlugin(ABC):
         Returns:
             bool: ポスト成功時 True、失敗時 False
         """
-        pass
 
     @abstractmethod
     def get_name(self) -> str:
@@ -69,7 +66,6 @@ class NotificationPlugin(ABC):
         Returns:
             str: プラグイン名
         """
-        pass
 
     @abstractmethod
     def get_version(self) -> str:
@@ -79,7 +75,6 @@ class NotificationPlugin(ABC):
         Returns:
             str: バージョン文字列
         """
-        pass
 
     def get_description(self) -> str:
         """
@@ -94,10 +89,8 @@ class NotificationPlugin(ABC):
         """
         プラグインが有効になった時に呼ばれる（オプション）
         """
-        pass
 
     def on_disable(self) -> None:
         """
         プラグインが無効になった時に呼ばれる（オプション）
         """
-        pass

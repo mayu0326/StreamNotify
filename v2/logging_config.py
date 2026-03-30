@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Stream notify on Bluesky - v2 ロギング設定
+StreamNotify - v2 ロギング設定
 
 ロギングの設定を一元管理するモジュール。
 ロギングプラグインが導入されている場合は、そちらの設定を優先的に使用。
 """
 
-import os
-import sys
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -29,7 +28,6 @@ class NoExcInfoStreamHandler(logging.StreamHandler):
 
 
 # --- CRLF→LF対応: LFでファイルを開くRotatingFileHandler ---
-import io
 
 
 class LFRotatingFileHandler(RotatingFileHandler):

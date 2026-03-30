@@ -1,0 +1,8 @@
+🛑 YouTube Live 配信終了
+
+チャンネル: {{ channel_name }}
+タイトル: {{ title }}
+開始日時: {{ published_at | datetimeformat }}
+配信URL: {{ stream_url }}
+
+またの配信をお楽しみに！
